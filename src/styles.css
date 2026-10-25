@@ -2962,3 +2962,20 @@
             border-color: var(--primary-mid);
             box-shadow: 0 0 0 2px rgba(4, 120, 87, 0.15);
         }
+
+        /* Ẩn nút tăng/giảm của input số trên điện thoại để không che năm */
+        .date-inputs input[type="number"] {
+            appearance: textfield;
+            -moz-appearance: textfield;
+        }
+
+        .date-inputs input[type="number"]::-webkit-outer-spin-button,
+        .date-inputs input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .date-inputs input.year-input {
+            width: 58px;
+            font-variant-numeric: tabular-nums;
+        }
