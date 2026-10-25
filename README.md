@@ -1,6 +1,6 @@
 # Bảng Thi Đua GDQP&AN
 
-Công cụ chấm điểm thi đua trung đội dạng **một file HTML tự chứa**, không dùng CDN, không cần cài đặt. Dữ liệu được lưu tự động trong trình duyệt trên thiết bị người dùng.
+Công cụ chấm điểm thi đua trung đội, chạy hoàn toàn trên trình duyệt. Dữ liệu được lưu tự động trong `localStorage` trên thiết bị người dùng, không gửi lên máy chủ.
 
 ## Dùng online
 
@@ -14,7 +14,7 @@ Có thể dùng trực tiếp trên điện thoại, máy tính bảng hoặc m�
 - Trừ điểm nhanh, ghi chú lý do, tự động xếp hạng và thống kê.
 - Tìm kiếm không dấu theo số trung đội, tòa nhà, phòng hoặc ghi chú.
 - Lọc theo tòa, đổi kiểu xem bảng/thẻ.
-- Cấu hình tên khóa, đơn vị, điểm gốc, ngày chấm và danh sách trung đội để dùng lại cho khóa sau.
+- Cấu hình tên khóa, đơn vị, điểm gốc, ngày chấm và danh sách trung đội.
 - Xuất/nhập file sao lưu `.json`, xuất `.csv`, in hoặc lưu PDF.
 - Nhập dữ liệu từ Excel/Google Sheets: `.xls` (Excel 97-2003), `.xlsx`, `.csv`, `.tsv` hoặc dán trực tiếp.
 - Tự nhận diện bảng điểm hoặc bảng nhà ở/biên chế để cập nhật danh sách trung đội.
@@ -32,16 +32,51 @@ Vào menu **⋮ → Nhập Excel / Google Sheets**.
 
 ## Dùng cho khóa sau
 
-1. Tải file `index.html` trong repo về máy.
-2. Đổi tên file, ví dụ `K338.html`. Mỗi tên file có vùng dữ liệu riêng trong trình duyệt, nên khóa mới không ghi đè khóa cũ.
-3. Mở file, vào menu **⋮ → Cấu Hình Khóa Học** để đổi tên khóa, đơn vị, điểm gốc, ngày chấm và danh sách trung đội.
-4. Xuất file `.json` của khóa cũ để sao lưu trước khi bắt đầu.
-5. Khi cần cập nhật bản online, thay nội dung `index.html` trong repo bằng file mới.
+1. Vào menu **⋮ → Xuất File Sao Lưu (.json)** để lưu dữ liệu khóa hiện tại.
+2. Vào **⋮ → Cấu Hình Khóa Học**, đổi tên khóa, đơn vị, điểm gốc, ngày chấm và danh sách trung đội.
+3. Nhập file Excel của khóa mới hoặc chỉnh trực tiếp trên giao diện.
+4. Khi cần xem lại khóa cũ, dùng **Nhập File Sao Lưu (.json)**.
+
+> Mỗi thiết bị/trình duyệt có vùng dữ liệu riêng. Hãy xuất `.json` định kỳ để sao lưu và để chuyển dữ liệu sang thiết bị khác.
+
+## Phát triển
+
+Dự án dùng **Vite + TypeScript**, mã nguồn tách thành các module trong `src/`:
+
+```text
+index.html                 # Khung giao diện
+src/main.ts                # Điểm vào, import CSS và app
+src/app.ts                 # Trạng thái, render, sự kiện, nhập/xuất
+src/parsers.ts             # Đọc .xls, .xlsx, .csv, .tsv, HTML/XML
+src/constants.ts           # Dữ liệu mẫu, preset 56 trung đội, alias cột
+src/utils.ts               # Hàm tiện ích dùng chung
+src/styles.css             # Toàn bộ giao diện
+```
+
+Cài đặt và chạy thử:
+
+```bash
+npm install
+npm run dev        # chạy dev server
+npm run typecheck  # kiểm tra TypeScript
+npm run build      # build ra thư mục dist/
+npm run preview    # xem thử bản build
+```
+
+## Triển khai
+
+Mỗi lần push lên nhánh `main`, GitHub Actions sẽ tự động:
+
+1. Cài dependencies bằng `npm ci`.
+2. Chạy `npm run build`.
+3. Deploy thư mục `dist/` lên GitHub Pages.
+
+Cấu hình workflow nằm tại `.github/workflows/deploy.yml`. Không commit thư mục `dist/` hay `node_modules/`.
 
 ## Quyền riêng tư
 
 - Dữ liệu chấm điểm chỉ lưu trong `localStorage` của trình duyệt trên thiết bị đang dùng, không gửi lên máy chủ.
-- Repo chỉ chứa giao diện và dữ liệu mẫu, **không chứa** danh sách cá nhân, số điện thoại, CCCD hay file Excel gốc.
+- Repo chỉ chứa mã nguồn và dữ liệu mẫu, **không chứa** danh sách cá nhân, số điện thoại, CCCD hay file Excel gốc.
 - Xóa dữ liệu trình duyệt hoặc dùng chế độ ẩn danh có thể làm mất dữ liệu. Hãy xuất `.json` định kỳ để sao lưu.
 
 ## Nguồn
