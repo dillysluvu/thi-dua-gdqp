@@ -21,12 +21,57 @@ import {
   downloadFile
 } from './utils';
 import { parseSheetText, parseSheetFile } from './parsers';
+import { recalculateScores, calculateScoreStats } from './scoring';
+import {
+  createAuditEntry,
+  appendAuditEntry,
+  type AuditEntry
+} from './audit';
+import {
+  loadCloudConfig,
+  saveCloudConfig,
+  isCloudConfigured,
+  testCloudConnection,
+  pushCourse,
+  pullCourse,
+  scheduleCloudPush,
+  type CloudConfig,
+  type CloudStatus
+} from './cloudSync';
+import {
+  createSnapshot,
+  maybeAutoSnapshot,
+  listSnapshots,
+  getSnapshot,
+  deleteSnapshot,
+  type CourseSnapshot
+} from './backup';
+import {
+  APP_ID,
+  APP_VERSION,
+  type CourseRecord,
+  type CourseSummary,
+  readCourseIndex,
+  saveCourseIndex,
+  loadCourseRecord,
+  saveCourseRecord,
+  deleteCourseRecord,
+  getCurrentCourseId,
+  setCurrentCourseId,
+  summarizeRecord,
+  makeDefaultRecord,
+  cloneRecord,
+  newCourseId,
+  readJson,
+  writeJson,
+  MAPPING_KEY,
+  SETTINGS_KEY,
+  snapshotKey
+} from './courseStore';
 
 // ============================================================
 // APP CONFIG, STORAGE & STATE
 // ============================================================
-const APP_ID = 'THI_DUA_GDQPAN';
-const APP_VERSION = 2;
 
 // Vùng lưu riêng theo đường dẫn/tên file để nhiều bản deploy hoặc nhiều khóa không ghi đè nhau.
 const STORAGE_PAGE = (() => {
@@ -59,13 +104,24 @@ const state: any = {
     viewMode: 'cards',
     activeItemId: null,
     activeModalIndex: -1,
-    items: []
+    items: [],
+    courseId: '',
+    courseList: [] as CourseSummary[],
+    createdAt: '',
+    locked: false,
+    lockedAt: '',
+    lockedBy: '',
+    graderName: 'Giảng viên',
+    audit: [] as AuditEntry[],
+    drawerOriginal: null as any,
+    cloudConfig: null as CloudConfig | null
 };
 
 // DOM Elements
 const elements: Record<string, any> = {
     appTitle: document.getElementById('appTitle'),
     appSubtitle: document.getElementById('appSubtitle'),
+    courseSelect: document.getElementById('courseSelect'),
     baseScoreLabel: document.getElementById('baseScoreLabel'),
     inputNgay: document.getElementById('inputNgay'),
     inputThang: document.getElementById('inputThang'),
@@ -73,10 +129,12 @@ const elements: Record<string, any> = {
     btnToday: document.getElementById('btnToday'),
     saveStatus: document.getElementById('saveStatus'),
     saveStatusText: document.getElementById('saveStatusText'),
+    offlineBadge: document.getElementById('offlineBadge'),
 
     cardsList: document.getElementById('cardsList'),
     tableCard: document.getElementById('tableCard'),
     tableBody: document.getElementById('tableBody'),
+    listCount: document.getElementById('listCount'),
     searchInput: document.getElementById('searchInput'),
     btnClearSearch: document.getElementById('btnClearSearch'),
     btnAutoNegative: document.getElementById('btnAutoNegative'),
@@ -109,6 +167,56 @@ const elements: Record<string, any> = {
     btnNextPlatoon: document.getElementById('btnNextPlatoon'),
     btnCloseDrawer: document.getElementById('btnCloseDrawer'),
     btnSaveNext: document.getElementById('btnSaveNext'),
+
+    // Course manager
+    courseModal: document.getElementById('courseModal'),
+    courseListEl: document.getElementById('courseList'),
+    newCourseName: document.getElementById('newCourseName'),
+    btnOpenCourses: document.getElementById('btnOpenCourses'),
+    btnCloseCourses: document.getElementById('btnCloseCourses'),
+    btnCloseCoursesFooter: document.getElementById('btnCloseCoursesFooter'),
+    btnCreateCourse: document.getElementById('btnCreateCourse'),
+    btnCloneCourse: document.getElementById('btnCloneCourse'),
+
+    // Backups
+    backupModal: document.getElementById('backupModal'),
+    backupListEl: document.getElementById('backupList'),
+    btnOpenBackups: document.getElementById('btnOpenBackups'),
+    btnCloseBackups: document.getElementById('btnCloseBackups'),
+    btnCloseBackupsFooter: document.getElementById('btnCloseBackupsFooter'),
+    btnCreateBackup: document.getElementById('btnCreateBackup'),
+
+    // Cloud sync
+    cloudModal: document.getElementById('cloudModal'),
+    cloudUrl: document.getElementById('cloudUrl'),
+    cloudAnonKey: document.getElementById('cloudAnonKey'),
+    cloudTable: document.getElementById('cloudTable'),
+    cloudSyncId: document.getElementById('cloudSyncId'),
+    cloudAutoPush: document.getElementById('cloudAutoPush'),
+    cloudStatus: document.getElementById('cloudStatus'),
+    btnOpenCloud: document.getElementById('btnOpenCloud'),
+    btnCloseCloud: document.getElementById('btnCloseCloud'),
+    btnCloseCloudFooter: document.getElementById('btnCloseCloudFooter'),
+    btnCloudSave: document.getElementById('btnCloudSave'),
+    btnCloudTest: document.getElementById('btnCloudTest'),
+    btnCloudPush: document.getElementById('btnCloudPush'),
+    btnCloudPull: document.getElementById('btnCloudPull'),
+
+    // Audit / lock
+    auditModal: document.getElementById('auditModal'),
+    auditListEl: document.getElementById('auditList'),
+    btnOpenAudit: document.getElementById('btnOpenAudit'),
+    btnCloseAudit: document.getElementById('btnCloseAudit'),
+    btnCloseAuditFooter: document.getElementById('btnCloseAuditFooter'),
+    btnToggleLock: document.getElementById('btnToggleLock'),
+    btnSaveGrader: document.getElementById('btnSaveGrader'),
+    btnExportAudit: document.getElementById('btnExportAudit'),
+    auditGraderName: document.getElementById('auditGraderName'),
+    lockStatusText: document.getElementById('lockStatusText'),
+    lockStatusDetail: document.getElementById('lockStatusDetail'),
+    lockBadge: document.getElementById('lockBadge'),
+    lockNotice: document.getElementById('lockNotice'),
+    drawerLockNotice: document.getElementById('drawerLockNotice'),
 
     // Settings & Help
     settingsModal: document.getElementById('settingsModal'),
@@ -151,6 +259,12 @@ const elements: Record<string, any> = {
     sheetPreviewTitle: document.getElementById('sheetPreviewTitle'),
     sheetPreviewTable: document.getElementById('sheetPreviewTable'),
     sheetSummary: document.getElementById('sheetSummary'),
+    sheetMappingGrid: document.getElementById('sheetMappingGrid'),
+    mappingName: document.getElementById('mappingName'),
+    btnSaveMapping: document.getElementById('btnSaveMapping'),
+    mappingPresetSelect: document.getElementById('mappingPresetSelect'),
+    btnApplyMapping: document.getElementById('btnApplyMapping'),
+    btnDeleteMapping: document.getElementById('btnDeleteMapping'),
 
     // Import / export / print
     importFile: document.getElementById('importFile'),
@@ -169,6 +283,7 @@ const elements: Record<string, any> = {
     customDialog: document.getElementById('customDialog'),
     dialogTitle: document.getElementById('dialogTitle'),
     dialogMessage: document.getElementById('dialogMessage'),
+    dialogInput: document.getElementById('dialogInput'),
     btnDialogCancel: document.getElementById('btnDialogCancel'),
     btnDialogConfirm: document.getElementById('btnDialogConfirm'),
     toastMsg: document.getElementById('toastMsg')
@@ -189,6 +304,15 @@ let renderTimer = null;
 let sheetImportState = null;
 let sheetParseTimer = null;
 let sheetSource = 'file';
+
+interface MappingPreset {
+    id: string;
+    name: string;
+    map: Record<string, number>;
+    hasHeader: boolean;
+    headerIndex?: number;
+    createdAt: string;
+}
 
 // ============================================================
 // DATA MODEL & PERSISTENCE
@@ -258,17 +382,29 @@ function applyMetaValues(meta) {
     if (typeof meta.activeBuilding === 'string' && meta.activeBuilding) state.activeBuilding = meta.activeBuilding;
 }
 
-function loadSavedData() {
-    let payload = null;
-    let loadedFromKey = '';
+function normalizeItems(rawItems: any[]): any[] {
+    const items: any[] = [];
+    const seenIds = new Set<number>();
 
-    const loadKeys = [
+    (Array.isArray(rawItems) ? rawItems : []).forEach(raw => {
+        const item = normalizeItem(raw);
+        if (item && !seenIds.has(item.id)) {
+            seenIds.add(item.id);
+            items.push(item);
+        }
+    });
+
+    return items;
+}
+
+function findLegacyPayload(): { payload: any; key: string } | null {
+    const keys = [
         STORAGE_KEY,
         ...(IS_ORIGINAL_PAGE ? [PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY] : []),
         ...LEGACY_PAGE_STORAGE_KEYS
     ];
 
-    for (const key of loadKeys) {
+    for (const key of keys) {
         try {
             const raw = localStorage.getItem(key);
             if (!raw) continue;
@@ -278,60 +414,110 @@ function loadSavedData() {
                 ? candidate.length > 0
                 : Boolean(candidate && Array.isArray(candidate.items) && candidate.items.length);
 
-            if (hasItems) {
-                payload = candidate;
-                loadedFromKey = key;
-                break;
-            }
+            if (hasItems) return { payload: candidate, key };
         } catch (error) {
-            console.warn(`Không đọc được dữ liệu đã lưu (${key}):`, error);
+            console.warn(`Không đọc được dữ liệu cũ (${key}):`, error);
         }
     }
 
-    let meta = null;
-    let rawItems = null;
-
-    if (Array.isArray(payload)) {
-        rawItems = payload;
-    } else if (payload && typeof payload === 'object') {
-        meta = payload.meta && typeof payload.meta === 'object' ? payload.meta : null;
-        rawItems = payload.items;
-    }
-
-    applyMetaValues(meta);
-
-    state.items = [];
-    if (Array.isArray(rawItems) && rawItems.length) {
-        const seenIds = new Set();
-        rawItems.forEach(raw => {
-            const item = normalizeItem(raw);
-            if (item && !seenIds.has(item.id)) {
-                seenIds.add(item.id);
-                state.items.push(item);
-            }
-        });
-    }
-
-    if (!state.items.length) {
-        state.items = createDefaultItems();
-    }
-
-    // Tự chuyển dữ liệu cũ sang khóa theo đường dẫn mới.
-    if (payload && loadedFromKey && loadedFromKey !== STORAGE_KEY) {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(buildPayload()));
-        } catch (error) {
-            console.warn('Không chuyển được dữ liệu sang khóa lưu mới:', error);
-        }
-    }
+    return null;
 }
 
-function buildPayload() {
+function createRecordFromLegacy(payload: any): CourseRecord {
+    const meta = (!Array.isArray(payload) && payload && payload.meta && typeof payload.meta === 'object')
+        ? payload.meta
+        : {};
+    const rawItems = Array.isArray(payload) ? payload : (payload && payload.items);
+    const items = normalizeItems(rawItems);
+    const now = new Date().toISOString();
+    const baseScore = Number(meta.baseScore);
+
     return {
         app: APP_ID,
         version: APP_VERSION,
-        savedAt: new Date().toISOString(),
+        savedAt: now,
         meta: {
+            id: newCourseId(),
+            courseName: String(meta.courseName || DEFAULT_META.courseName).trim() || DEFAULT_META.courseName,
+            unitName: String(meta.unitName || DEFAULT_META.unitName).trim() || DEFAULT_META.unitName,
+            baseScore: Number.isFinite(baseScore) && baseScore > 0 ? round1(baseScore) : DEFAULT_META.baseScore,
+            ngay: clampInt(meta.ngay, 1, 31, DEFAULT_META.ngay),
+            thang: clampInt(meta.thang, 1, 12, DEFAULT_META.thang),
+            nam: clampInt(meta.nam, 2000, 2100, DEFAULT_META.nam),
+            autoNegative: typeof meta.autoNegative === 'boolean' ? meta.autoNegative : true,
+            viewMode: meta.viewMode === 'table' ? 'table' : 'cards',
+            activeBuilding: typeof meta.activeBuilding === 'string' && meta.activeBuilding ? meta.activeBuilding : 'ALL',
+            locked: false,
+            lockedAt: '',
+            lockedBy: '',
+            graderName: 'Giảng viên',
+            createdAt: now,
+            updatedAt: now
+        },
+        items: items.length ? items : createDefaultItems(),
+        audit: []
+    };
+}
+
+function applyCourseRecord(record: CourseRecord): void {
+    state.courseId = record.meta.id;
+    state.createdAt = record.meta.createdAt || record.savedAt || new Date().toISOString();
+    state.locked = Boolean(record.meta.locked);
+    state.lockedAt = record.meta.lockedAt || '';
+    state.lockedBy = record.meta.lockedBy || '';
+    state.graderName = record.meta.graderName || 'Giảng viên';
+    applyMetaValues(record.meta);
+    state.audit = Array.isArray(record.audit) ? record.audit.slice(-1000) : [];
+
+    const items = normalizeItems(record.items);
+    state.items = items.length ? items : createDefaultItems();
+}
+
+function loadSavedData() {
+    const index = readCourseIndex();
+    state.courseList = index;
+
+    if (index.length) {
+        const currentId = getCurrentCourseId();
+        const target = index.find(course => course.id === currentId) || index[0];
+        const record = loadCourseRecord(target.id);
+
+        if (record) {
+            applyCourseRecord(record);
+            setCurrentCourseId(record.meta.id);
+            return;
+        }
+
+        // Bỏ các mục index bị thiếu dữ liệu.
+        state.courseList = index.filter(course => Boolean(loadCourseRecord(course.id)));
+        if (state.courseList.length) {
+            saveCourseIndex(state.courseList);
+            const firstRecord = loadCourseRecord(state.courseList[0].id);
+            if (firstRecord) {
+                applyCourseRecord(firstRecord);
+                setCurrentCourseId(firstRecord.meta.id);
+                return;
+            }
+        }
+    }
+
+    const legacy = findLegacyPayload();
+    const record = legacy ? createRecordFromLegacy(legacy.payload) : makeDefaultRecord();
+    state.courseList = [summarizeRecord(record)];
+    applyCourseRecord(record);
+    saveCourseRecord(record);
+    saveCourseIndex(state.courseList);
+    setCurrentCourseId(record.meta.id);
+}
+
+function buildPayload(): CourseRecord {
+    const now = new Date().toISOString();
+    return {
+        app: APP_ID,
+        version: APP_VERSION,
+        savedAt: now,
+        meta: {
+            id: state.courseId,
             courseName: state.courseName,
             unitName: state.unitName,
             baseScore: state.baseScore,
@@ -340,10 +526,28 @@ function buildPayload() {
             nam: state.date.nam,
             autoNegative: state.autoNegative,
             viewMode: state.viewMode,
-            activeBuilding: state.activeBuilding
+            activeBuilding: state.activeBuilding,
+            locked: Boolean(state.locked),
+            lockedAt: state.lockedAt || '',
+            lockedBy: state.lockedBy || '',
+            graderName: state.graderName || 'Giảng viên',
+            createdAt: state.createdAt || now,
+            updatedAt: now
         },
-        items: state.items
+        items: state.items,
+        audit: Array.isArray(state.audit) ? state.audit.slice(-1000) : []
     };
+}
+
+function updateCourseSummary(payload: CourseRecord): void {
+    const summary = summarizeRecord(payload);
+    const index = state.courseList.findIndex(course => course.id === summary.id);
+    if (index >= 0) {
+        state.courseList[index] = summary;
+    } else {
+        state.courseList.push(summary);
+    }
+    state.courseList.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
 }
 
 function updateSaveStatus(ok) {
@@ -357,15 +561,27 @@ function updateSaveStatus(ok) {
 }
 
 function saveData() {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(buildPayload()));
-        updateSaveStatus(true);
-        return true;
-    } catch (error) {
-        console.error('Storage write error', error);
+    if (!state.courseId) return false;
+
+    const payload = buildPayload();
+    if (!saveCourseRecord(payload)) {
         updateSaveStatus(false);
         return false;
     }
+
+    updateCourseSummary(payload);
+    saveCourseIndex(state.courseList);
+    setCurrentCourseId(state.courseId);
+    updateSaveStatus(true);
+    maybeAutoSnapshot(payload);
+    if (state.cloudConfig) {
+        scheduleCloudPush(payload, state.cloudConfig, status => {
+            if (!status.ok && elements.cloudModal && elements.cloudModal.classList.contains('open')) {
+                setCloudStatus(status);
+            }
+        });
+    }
+    return true;
 }
 
 function updatePrintDate() {
@@ -392,53 +608,665 @@ function applyMetaToUI() {
     elements.printCourse.textContent = state.courseName;
     elements.printUnit.textContent = state.unitName;
     updatePrintDate();
+    renderCourseSelect();
+    renderLockUI();
+}
 
-    document.title = `Thi Đua ${state.courseName} - ${state.unitName}`;
+// ============================================================
+// COURSE MANAGEMENT
+// ============================================================
+function formatCourseDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function renderCourseSelect() {
+    if (!elements.courseSelect) return;
+
+    const list = state.courseList.length
+        ? state.courseList
+        : [{ id: state.courseId, courseName: state.courseName, unitName: state.unitName, itemCount: state.items.length, createdAt: state.createdAt, updatedAt: state.createdAt, locked: state.locked }];
+
+    elements.courseSelect.innerHTML = list.map(course =>
+        `<option value="${escapeHtml(course.id)}">${escapeHtml(course.courseName)}${course.locked ? ' (đã khóa)' : ''}</option>`
+    ).join('');
+    elements.courseSelect.value = state.courseId;
+}
+
+function renderCourseList() {
+    if (!elements.courseListEl) return;
+
+    if (!state.courseList.length) {
+        elements.courseListEl.innerHTML = '<div class="empty-state">Chưa có khóa học nào.</div>';
+        return;
+    }
+
+    elements.courseListEl.innerHTML = state.courseList.map(course => {
+        const current = course.id === state.courseId;
+        return `
+            <div class="course-row ${current ? 'active' : ''}">
+                <div class="course-row-main">
+                    <div class="course-row-title">
+                        ${escapeHtml(course.courseName)}
+                        ${course.locked ? '<span class="course-lock">Đã khóa</span>' : ''}
+                        ${current ? '<span class="course-current">Đang dùng</span>' : ''}
+                    </div>
+                    <div class="course-row-meta">
+                        ${escapeHtml(course.unitName || 'Chưa có đơn vị')} · ${course.itemCount} trung đội
+                        ${course.updatedAt ? ` · Cập nhật ${escapeHtml(formatCourseDate(course.updatedAt))}` : ''}
+                    </div>
+                </div>
+                <div class="course-row-actions">
+                    ${current ? '' : `<button type="button" class="btn-course" data-course-action="open" data-course-id="${escapeHtml(course.id)}">Mở</button>`}
+                    <button type="button" class="btn-course" data-course-action="rename" data-course-id="${escapeHtml(course.id)}">Đổi tên</button>
+                    <button type="button" class="btn-course" data-course-action="clone" data-course-id="${escapeHtml(course.id)}">Nhân bản</button>
+                    <button type="button" class="btn-course danger" data-course-action="delete" data-course-id="${escapeHtml(course.id)}">Xóa</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openCourseModal() {
+    renderCourseList();
+    if (elements.newCourseName) elements.newCourseName.value = '';
+    elements.courseModal.classList.add('open');
+    setTimeout(() => elements.newCourseName && elements.newCourseName.focus(), 60);
+}
+
+function closeCourseModal() {
+    elements.courseModal.classList.remove('open');
+}
+
+function activateCourseRecord(record: CourseRecord) {
+    applyCourseRecord(record);
+    setCurrentCourseId(record.meta.id);
+    state.searchQuery = '';
+    state.activeItemId = null;
+    state.activeModalIndex = -1;
+    if (elements.searchInput) elements.searchInput.value = '';
+    if (elements.btnClearSearch) elements.btnClearSearch.style.display = 'none';
+    applyMetaToUI();
+    renderBuildingPills();
+    updateCalculations();
+    render();
+}
+
+function switchCourse(id: string) {
+    if (!id || id === state.courseId) return;
+
+    if (!saveData()) {
+        renderCourseSelect();
+        showToast('Không lưu được khóa hiện tại. Chưa chuyển khóa.');
+        return;
+    }
+
+    const record = loadCourseRecord(id);
+    if (!record) {
+        renderCourseSelect();
+        showToast('Không tìm thấy dữ liệu của khóa này.');
+        return;
+    }
+
+    const summary = summarizeRecord(record);
+    const index = state.courseList.findIndex(course => course.id === id);
+    if (index >= 0) state.courseList[index] = summary;
+    else state.courseList.push(summary);
+
+    activateCourseRecord(record);
+    renderCourseList();
+    closeCourseModal();
+    showToast(`Đã chuyển sang khóa ${state.courseName}`);
+}
+
+function createCourseFromName(name: string, cloneSourceId = '') {
+    const courseName = String(name || '').trim();
+    if (!courseName) {
+        showToast('Hãy nhập tên khóa mới.');
+        return;
+    }
+
+    if (state.courseList.some(course => normalizeText(course.courseName) === normalizeText(courseName))) {
+        showToast('Tên khóa này đã tồn tại. Hãy chọn tên khác.');
+        return;
+    }
+
+    if (!saveData()) {
+        showToast('Không lưu được dữ liệu hiện tại. Chưa tạo khóa mới.');
+        return;
+    }
+
+    let record: CourseRecord;
+    if (cloneSourceId) {
+        const source = loadCourseRecord(cloneSourceId);
+        if (!source) {
+            showToast('Không tìm thấy khóa nguồn để nhân bản.');
+            return;
+        }
+        record = cloneRecord(source, courseName);
+    } else {
+        record = makeDefaultRecord(courseName);
+        const today = new Date();
+        record.meta.unitName = state.unitName || record.meta.unitName;
+        record.meta.ngay = today.getDate();
+        record.meta.thang = today.getMonth() + 1;
+        record.meta.nam = today.getFullYear();
+        record.meta.graderName = state.graderName || 'Giảng viên';
+    }
+
+    if (!saveCourseRecord(record)) {
+        showToast('Không tạo được khóa mới trên thiết bị này.');
+        return;
+    }
+
+    state.courseList.push(summarizeRecord(record));
+    saveCourseIndex(state.courseList);
+    activateCourseRecord(record);
+    if (elements.newCourseName) elements.newCourseName.value = '';
+    renderCourseList();
+    closeCourseModal();
+    showToast(cloneSourceId ? `Đã nhân bản thành khóa ${courseName}` : `Đã tạo khóa ${courseName}`);
+}
+
+async function renameCourse(id: string, name: string) {
+    const newName = String(name || '').trim();
+    if (!newName) return;
+
+    if (state.courseList.some(course => course.id !== id && normalizeText(course.courseName) === normalizeText(newName))) {
+        showToast('Tên khóa này đã tồn tại. Hãy chọn tên khác.');
+        return;
+    }
+
+    if (id === state.courseId) {
+        state.courseName = newName;
+        saveData();
+        applyMetaToUI();
+    } else {
+        const record = loadCourseRecord(id);
+        if (!record) {
+            showToast('Không tìm thấy khóa cần đổi tên.');
+            return;
+        }
+        const now = new Date().toISOString();
+        record.meta.courseName = newName;
+        record.meta.updatedAt = now;
+        record.savedAt = now;
+        saveCourseRecord(record);
+        const index = state.courseList.findIndex(course => course.id === id);
+        if (index >= 0) state.courseList[index] = summarizeRecord(record);
+        saveCourseIndex(state.courseList);
+    }
+
+    renderCourseList();
+    showToast('Đã đổi tên khóa.');
+}
+
+async function deleteCourse(id: string) {
+    if (state.locked && id === state.courseId) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi xóa khóa hiện tại.');
+        return;
+    }
+    if (state.courseList.length <= 1) {
+        showToast('Không thể xóa khóa duy nhất. Hãy tạo khóa khác trước.');
+        return;
+    }
+
+    const summary = state.courseList.find(course => course.id === id);
+    if (!summary) return;
+
+    const ok = await customConfirm(
+        'Xóa Khóa Học',
+        `Xóa khóa "${summary.courseName}" và toàn bộ dữ liệu của khóa này?
+Thao tác không thể hoàn tác.`
+    );
+    if (!ok) return;
+
+    const wasCurrent = id === state.courseId;
+    deleteCourseRecord(id);
+    state.courseList = state.courseList.filter(course => course.id !== id);
+    saveCourseIndex(state.courseList);
+
+    if (wasCurrent) {
+        const next = state.courseList[0];
+        const record = next ? loadCourseRecord(next.id) : null;
+        if (record) {
+            activateCourseRecord(record);
+        } else {
+            const fallback = makeDefaultRecord();
+            saveCourseRecord(fallback);
+            state.courseList = [summarizeRecord(fallback)];
+            saveCourseIndex(state.courseList);
+            activateCourseRecord(fallback);
+        }
+    }
+
+    renderCourseList();
+    showToast('Đã xóa khóa học.');
+}
+
+// ============================================================
+// BACKUP / SNAPSHOTS
+// ============================================================
+function captureSnapshot(reason: string, force = true): boolean {
+    const snapshot = createSnapshot(buildPayload(), reason, force);
+    if (!snapshot) return false;
+    if (elements.backupModal && elements.backupModal.classList.contains('open')) {
+        renderBackupList();
+    }
+    return true;
+}
+
+function renderBackupList() {
+    if (!elements.backupListEl) return;
+
+    const snapshots = listSnapshots(state.courseId);
+    if (!snapshots.length) {
+        elements.backupListEl.innerHTML = '<div class="empty-state">Chưa có bản sao lưu nào. Hệ thống sẽ tự tạo bản đầu tiên và tự sao lưu định kỳ khi có thay đổi.</div>';
+        return;
+    }
+
+    elements.backupListEl.innerHTML = snapshots.map(snapshot => {
+        const record = snapshot.record;
+        const itemCount = Array.isArray(record.items) ? record.items.length : 0;
+        const average = itemCount
+            ? (record.items.reduce((sum, item) => sum + (Number(item.totalScore) || 0), 0) / itemCount).toFixed(2)
+            : '0.00';
+        return `
+            <div class="backup-row">
+                <div class="backup-main">
+                    <div class="backup-title">${escapeHtml(snapshot.reason)}</div>
+                    <div class="backup-meta">
+                        ${escapeHtml(formatCourseDate(snapshot.createdAt))} · ${itemCount} trung đội · TB ${average}đ
+                    </div>
+                </div>
+                <div class="backup-actions">
+                    <button type="button" class="btn-course" data-backup-action="restore" data-backup-id="${escapeHtml(snapshot.id)}">Khôi phục</button>
+                    <button type="button" class="btn-course danger" data-backup-action="delete" data-backup-id="${escapeHtml(snapshot.id)}">Xóa</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openBackupModal() {
+    renderBackupList();
+    elements.backupModal.classList.add('open');
+}
+
+function closeBackupModal() {
+    elements.backupModal.classList.remove('open');
+}
+
+function createBackupNow() {
+    if (captureSnapshot('Sao lưu thủ công', true)) {
+        renderBackupList();
+        showToast('Đã tạo bản sao lưu mới.');
+    } else {
+        showToast('Không thể tạo bản sao lưu. Bộ nhớ thiết bị có thể đã đầy.');
+    }
+}
+
+async function restoreBackup(id: string) {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi khôi phục bản sao lưu.');
+        return;
+    }
+    const snapshot = getSnapshot(state.courseId, id);
+    if (!snapshot) {
+        showToast('Không tìm thấy bản sao lưu này.');
+        return;
+    }
+
+    const ok = await customConfirm(
+        'Khôi Phục Bản Sao Lưu',
+        `Khôi phục dữ liệu lúc ${formatCourseDate(snapshot.createdAt)}?\nDữ liệu hiện tại sẽ được tự động sao lưu trước khi khôi phục.`
+    );
+    if (!ok) return;
+
+    captureSnapshot('Trước khi khôi phục', true);
+
+    const record: CourseRecord = JSON.parse(JSON.stringify(snapshot.record));
+    const now = new Date().toISOString();
+    record.meta.id = state.courseId;
+    record.meta.updatedAt = now;
+    record.savedAt = now;
+
+    applyCourseRecord(record);
+    logAudit('Khôi phục bản sao lưu', `Khôi phục bản lưu lúc ${formatCourseDate(snapshot.createdAt)}`);
+    applyMetaToUI();
+    renderBuildingPills();
+    updateCalculations();
+    render();
+    closeBackupModal();
+    showToast('Đã khôi phục bản sao lưu.');
+}
+
+async function removeBackup(id: string) {
+    const snapshot = getSnapshot(state.courseId, id);
+    if (!snapshot) return;
+
+    const ok = await customConfirm(
+        'Xóa Bản Sao Lưu',
+        `Xóa bản sao lưu "${snapshot.reason}" lúc ${formatCourseDate(snapshot.createdAt)}?`
+    );
+    if (!ok) return;
+
+    if (deleteSnapshot(state.courseId, id)) {
+        renderBackupList();
+        showToast('Đã xóa bản sao lưu.');
+    } else {
+        showToast('Không xóa được bản sao lưu.');
+    }
+}
+
+// ============================================================
+// CLOUD SYNC (SUPABASE - TÙY CHỌN)
+// ============================================================
+function setCloudStatus(status: CloudStatus | null) {
+    if (!elements.cloudStatus) return;
+    elements.cloudStatus.classList.toggle('ok', Boolean(status && status.ok));
+    elements.cloudStatus.classList.toggle('error', Boolean(status && !status.ok));
+    elements.cloudStatus.textContent = status ? status.message : '';
+}
+
+function readCloudForm(): CloudConfig {
+    return {
+        url: String(elements.cloudUrl.value || '').trim().replace(/\/+$/, ''),
+        anonKey: String(elements.cloudAnonKey.value || '').trim(),
+        table: String(elements.cloudTable.value || '').trim() || 'course_sync',
+        syncId: String(elements.cloudSyncId.value || '').trim() || 'gdqpan',
+        autoPush: Boolean(elements.cloudAutoPush.checked)
+    };
+}
+
+function openCloudModal() {
+    state.cloudConfig = loadCloudConfig();
+    const config = state.cloudConfig;
+    elements.cloudUrl.value = config.url || '';
+    elements.cloudAnonKey.value = config.anonKey || '';
+    elements.cloudTable.value = config.table || 'course_sync';
+    elements.cloudSyncId.value = config.syncId || 'gdqpan';
+    elements.cloudAutoPush.checked = Boolean(config.autoPush);
+    setCloudStatus(isCloudConfigured(config)
+        ? { ok: true, message: 'Đã có cấu hình. Có thể kiểm tra kết nối hoặc đồng bộ.' }
+        : { ok: false, message: 'Chưa cấu hình Supabase. Điền URL, anon key và tạo bảng theo hướng dẫn.' });
+    elements.cloudModal.classList.add('open');
+}
+
+function closeCloudModal() {
+    elements.cloudModal.classList.remove('open');
+}
+
+function saveCloudForm() {
+    const config = readCloudForm();
+    if (!saveCloudConfig(config)) {
+        setCloudStatus({ ok: false, message: 'Không lưu được cấu hình trên thiết bị này.' });
+        return;
+    }
+    state.cloudConfig = config;
+    setCloudStatus({ ok: true, message: 'Đã lưu cấu hình đồng bộ trên thiết bị.' });
+    showToast('Đã lưu cấu hình đồng bộ đám mây.');
+}
+
+async function testCloud() {
+    const config = readCloudForm();
+    saveCloudConfig(config);
+    state.cloudConfig = config;
+    setCloudStatus({ ok: true, message: 'Đang kiểm tra kết nối...' });
+    const status = await testCloudConnection(config);
+    setCloudStatus(status);
+    showToast(status.message);
+}
+
+async function pushCloudNow() {
+    const config = readCloudForm();
+    saveCloudConfig(config);
+    state.cloudConfig = config;
+
+    if (!isCloudConfigured(config)) {
+        setCloudStatus({ ok: false, message: 'Chưa điền đủ URL, anon key, bảng và mã đồng bộ.' });
+        return;
+    }
+
+    if (!saveData()) {
+        setCloudStatus({ ok: false, message: 'Không lưu được dữ liệu cục bộ trước khi đẩy lên.' });
+        return;
+    }
+
+    setCloudStatus({ ok: true, message: 'Đang đẩy dữ liệu lên Supabase...' });
+    const status = await pushCourse(buildPayload(), config);
+    setCloudStatus(status);
+    showToast(status.message);
+}
+
+async function pullCloudNow() {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi kéo dữ liệu đám mây.');
+        return;
+    }
+
+    const config = readCloudForm();
+    saveCloudConfig(config);
+    state.cloudConfig = config;
+
+    if (!isCloudConfigured(config)) {
+        setCloudStatus({ ok: false, message: 'Chưa điền đủ URL, anon key, bảng và mã đồng bộ.' });
+        return;
+    }
+
+    const ok = await customConfirm(
+        'Kéo Dữ Liệu Từ Đám Mây',
+        'Tải bản mới nhất của khóa hiện tại từ Supabase và thay thế dữ liệu trên thiết bị?\nDữ liệu hiện tại sẽ được sao lưu trước khi thay thế.'
+    );
+    if (!ok) return;
+
+    setCloudStatus({ ok: true, message: 'Đang kéo dữ liệu từ Supabase...' });
+    const result = await pullCourse(state.courseId, config);
+    if (!result.ok || !result.record) {
+        setCloudStatus(result);
+        showToast(result.message);
+        return;
+    }
+
+    captureSnapshot('Trước khi kéo dữ liệu đám mây', true);
+    const record = result.record;
+    const now = new Date().toISOString();
+    record.meta.id = state.courseId;
+    record.meta.updatedAt = now;
+    record.savedAt = now;
+
+    applyCourseRecord(record);
+    logAudit('Đồng bộ đám mây', 'Kéo dữ liệu khóa từ Supabase');
+    applyMetaToUI();
+    renderBuildingPills();
+    updateCalculations();
+    render();
+    setCloudStatus({ ok: true, message: 'Đã kéo dữ liệu từ Supabase.' });
+    showToast('Đã đồng bộ dữ liệu từ đám mây.');
+}
+
+// ============================================================
+// AUDIT LOG & SCORE LOCK
+// ============================================================
+function logAudit(action: string, detail: string) {
+    state.audit = appendAuditEntry(
+        state.audit,
+        createAuditEntry(action, detail, state.graderName || 'Giảng viên')
+    );
+}
+
+function renderAuditList() {
+    if (!elements.auditListEl) return;
+
+    const entries = Array.isArray(state.audit)
+        ? state.audit.slice(-200).reverse()
+        : [];
+
+    if (!entries.length) {
+        elements.auditListEl.innerHTML = '<div class="empty-state">Chưa có ghi nhận thay đổi nào.</div>';
+        return;
+    }
+
+    elements.auditListEl.innerHTML = entries.map(entry => `
+        <div class="audit-row">
+            <div class="audit-top">
+                <span class="audit-action">${escapeHtml(entry.action || 'Thay đổi')}</span>
+                <span class="audit-time">${escapeHtml(formatCourseDate(entry.at))}</span>
+            </div>
+            <div class="audit-detail">${escapeHtml(entry.detail || '')}</div>
+            <div class="audit-actor">${escapeHtml(entry.actor || 'Giảng viên')}</div>
+        </div>
+    `).join('');
+}
+
+function updateDrawerLockUI() {
+    const locked = Boolean(state.locked);
+    if (elements.gradingDrawer) elements.gradingDrawer.classList.toggle('locked', locked);
+    if (elements.drawerLockNotice) elements.drawerLockNotice.hidden = !locked;
+
+    [
+        elements.drawerQuanSo,
+        elements.drawerHocTap,
+        elements.drawerRenLuyen,
+        elements.drawerNvvs,
+        elements.drawerLeTiet,
+        elements.drawerNote
+    ].forEach(input => {
+        if (input) input.disabled = locked;
+    });
+
+    document.querySelectorAll('.btn-quick-deduct').forEach(button => {
+        (button as HTMLButtonElement).disabled = locked;
+    });
+
+    if (elements.btnSaveNext) {
+        elements.btnSaveNext.disabled = locked;
+        elements.btnSaveNext.innerHTML = locked
+            ? 'Sổ đã khóa'
+            : '<span>Lưu &amp; Sang Phòng Tiếp</span> ›';
+    }
+}
+
+function renderLockUI() {
+    const locked = Boolean(state.locked);
+    if (elements.lockBadge) elements.lockBadge.hidden = !locked;
+    if (elements.lockNotice) elements.lockNotice.hidden = !locked;
+    document.body.classList.toggle('score-locked', locked);
+
+    if (elements.lockStatusText) {
+        elements.lockStatusText.textContent = locked ? 'Sổ điểm đã khóa' : 'Sổ điểm đang mở';
+    }
+    if (elements.lockStatusDetail) {
+        elements.lockStatusDetail.textContent = locked && state.lockedAt
+            ? `Khóa lúc ${formatCourseDate(state.lockedAt)} bởi ${state.lockedBy || state.graderName || 'Giảng viên'}.`
+            : 'Có thể chấm điểm và sửa dữ liệu. Hãy khóa sổ sau khi hoàn tất để tránh sửa nhầm.';
+    }
+    if (elements.btnToggleLock) {
+        elements.btnToggleLock.textContent = locked ? 'Mở khóa sổ điểm' : 'Khóa sổ điểm';
+        elements.btnToggleLock.className = `btn-modal ${locked ? 'secondary' : 'danger'}`;
+    }
+    if (elements.auditGraderName && document.activeElement !== elements.auditGraderName) {
+        elements.auditGraderName.value = state.graderName || 'Giảng viên';
+    }
+    if (elements.btnSaveSettings) elements.btnSaveSettings.disabled = locked;
+
+    updateDrawerLockUI();
+}
+
+function openAuditModal() {
+    renderAuditList();
+    renderLockUI();
+    elements.auditModal.classList.add('open');
+}
+
+function closeAuditModal() {
+    elements.auditModal.classList.remove('open');
+}
+
+async function toggleLock() {
+    const nextLocked = !state.locked;
+    const ok = await customConfirm(
+        nextLocked ? 'Khóa Sổ Điểm' : 'Mở Khóa Sổ Điểm',
+        nextLocked
+            ? 'Khóa sổ điểm của khóa hiện tại?\nSau khi khóa, các thao tác chấm điểm, sửa quân số, nhập Excel và đổi cấu hình sẽ bị chặn cho đến khi mở khóa.'
+            : 'Mở khóa sổ điểm để tiếp tục chấm điểm và chỉnh sửa?'
+    );
+    if (!ok) return;
+
+    state.locked = nextLocked;
+    if (nextLocked) {
+        state.lockedAt = new Date().toISOString();
+        state.lockedBy = state.graderName || 'Giảng viên';
+        logAudit('Khóa sổ điểm', `Khóa bởi ${state.lockedBy}`);
+    } else {
+        state.lockedAt = '';
+        state.lockedBy = '';
+        logAudit('Mở khóa sổ điểm', `Mở bởi ${state.graderName || 'Giảng viên'}`);
+    }
+
+    saveData();
+    renderCourseSelect();
+    renderCourseList();
+    renderLockUI();
+    renderAuditList();
+    render();
+    showToast(nextLocked ? 'Đã khóa sổ điểm.' : 'Đã mở khóa sổ điểm.');
+}
+
+function saveGraderName() {
+    const name = String(elements.auditGraderName.value || '').trim() || 'Giảng viên';
+    if (name === state.graderName) {
+        showToast('Tên người chấm không thay đổi.');
+        return;
+    }
+
+    const oldName = state.graderName || 'Giảng viên';
+    state.graderName = name;
+    logAudit('Đổi người chấm', `${oldName} → ${name}`);
+    saveData();
+    renderLockUI();
+    renderAuditList();
+    showToast('Đã lưu tên người chấm.');
+}
+
+function exportAuditCSV() {
+    const rows = [
+        ['Thời gian', 'Hành động', 'Chi tiết', 'Người thực hiện'],
+        ...(state.audit || []).map(entry => [
+            formatCourseDate(entry.at),
+            entry.action,
+            entry.detail,
+            entry.actor
+        ])
+    ];
+    const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+    const filename = `NhatKy_${slugify(state.courseName)}_${dateToken()}.csv`;
+    downloadFile(csv, filename, 'text/csv;charset=utf-8');
+    showToast('Đã xuất nhật ký CSV.');
 }
 
 // ============================================================
 // CALCULATIONS, STATS & FILTERS
 // ============================================================
 function updateCalculations() {
-    state.items.forEach(item => {
-        const total = state.baseScore
-            + toNumber(item.hocTap)
-            + toNumber(item.renLuyen)
-            + toNumber(item.nvvs)
-            + toNumber(item.leTiet);
-        item.totalScore = round1(total);
-    });
-
-    const scores = (Array.from(new Set(state.items.map((item: any) => Number(item.totalScore)))) as number[]).sort((a, b) => b - a);
-    state.items.forEach(item => {
-        item.rank = scores.indexOf(item.totalScore) + 1;
-    });
-
+    state.items = recalculateScores(state.items, state.baseScore);
     updateStats();
     saveData();
 }
 
 function updateStats() {
-    let present = 0;
-    let total = 0;
-
-    state.items.forEach(item => {
-        const match = String(item.quanSo || '').match(/^(\d+)\s*\/\s*(\d+)$/);
-        if (match) {
-            present += parseInt(match[1], 10) || 0;
-            total += parseInt(match[2], 10) || 0;
-        }
-    });
-
-    elements.statQuanSo.textContent = `${present}/${total}`;
-
-    const sumScore = state.items.reduce((sum, item) => sum + item.totalScore, 0);
-    elements.statAvgScore.textContent = state.items.length
-        ? (sumScore / state.items.length).toFixed(2)
-        : '0.00';
-
-    elements.statPerfect.textContent = state.items.filter(item => item.totalScore >= state.baseScore).length;
-    elements.statDeducted.textContent = state.items.filter(item => item.totalScore < state.baseScore).length;
+    const stats = calculateScoreStats(state.items, state.baseScore);
+    elements.statQuanSo.textContent = `${stats.present}/${stats.total}`;
+    elements.statAvgScore.textContent = stats.average.toFixed(2);
+    elements.statPerfect.textContent = String(stats.perfect);
+    elements.statDeducted.textContent = String(stats.deducted);
 }
 
 function getFilteredItems() {
@@ -492,6 +1320,9 @@ function renderBuildingPills() {
 // ============================================================
 function render() {
     const filtered = getFilteredItems();
+    if (elements.listCount) {
+        elements.listCount.textContent = `${filtered.length} trung đội`;
+    }
 
     if (state.viewMode === 'cards') {
         elements.cardsList.style.display = 'grid';
@@ -561,8 +1392,8 @@ function renderCards(items) {
 
                 <div class="card-footer">
                     <div class="scores-breakdown">${breakdownHtml}</div>
-                    <button class="btn-grade-card" onclick="openDrawerById(${item.id})">
-                        ✎ Chấm Điểm
+                    <button class="btn-grade-card" onclick="openDrawerById(${item.id})" ${state.locked ? 'title="Sổ điểm đã khóa"' : ''}>
+                        ${state.locked ? '🔒 Xem Điểm' : '✎ Chấm Điểm'}
                     </button>
                 </div>
             </div>
@@ -589,26 +1420,26 @@ function renderTable(items) {
                     <div style="font-size:10px; color:#64748b;">P. ${escapeHtml(item.rooms)}</div>
                 </td>
                 <td style="text-align:center;">
-                    <input type="text" class="table-input" inputmode="numeric" value="${escapeHtml(item.quanSo)}" onchange="updateItemQuanSo(${item.id}, this.value)">
+                    <input type="text" class="table-input" inputmode="numeric" value="${escapeHtml(item.quanSo)}" onchange="updateItemQuanSo(${item.id}, this.value)" ${state.locked ? 'disabled' : ''}>
                 </td>
                 <td style="text-align:center;">
-                    <input type="number" step="0.1" class="table-input ${item.hocTap < 0 ? 'neg' : ''}" value="${formatNum(item.hocTap)}" onchange="updateItemCat(${item.id}, 'hocTap', this.value)">
+                    <input type="number" step="0.1" class="table-input ${item.hocTap < 0 ? 'neg' : ''}" value="${formatNum(item.hocTap)}" onchange="updateItemCat(${item.id}, 'hocTap', this.value)" ${state.locked ? 'disabled' : ''}>
                 </td>
                 <td style="text-align:center;">
-                    <input type="number" step="0.1" class="table-input ${item.renLuyen < 0 ? 'neg' : ''}" value="${formatNum(item.renLuyen)}" onchange="updateItemCat(${item.id}, 'renLuyen', this.value)">
+                    <input type="number" step="0.1" class="table-input ${item.renLuyen < 0 ? 'neg' : ''}" value="${formatNum(item.renLuyen)}" onchange="updateItemCat(${item.id}, 'renLuyen', this.value)" ${state.locked ? 'disabled' : ''}>
                 </td>
                 <td style="text-align:center;">
-                    <input type="number" step="0.1" class="table-input ${item.nvvs < 0 ? 'neg' : ''}" value="${formatNum(item.nvvs)}" onchange="updateItemCat(${item.id}, 'nvvs', this.value)">
+                    <input type="number" step="0.1" class="table-input ${item.nvvs < 0 ? 'neg' : ''}" value="${formatNum(item.nvvs)}" onchange="updateItemCat(${item.id}, 'nvvs', this.value)" ${state.locked ? 'disabled' : ''}>
                 </td>
                 <td style="text-align:center;">
-                    <input type="number" step="0.1" class="table-input ${item.leTiet < 0 ? 'neg' : ''}" value="${formatNum(item.leTiet)}" onchange="updateItemCat(${item.id}, 'leTiet', this.value)">
+                    <input type="number" step="0.1" class="table-input ${item.leTiet < 0 ? 'neg' : ''}" value="${formatNum(item.leTiet)}" onchange="updateItemCat(${item.id}, 'leTiet', this.value)" ${state.locked ? 'disabled' : ''}>
                 </td>
                 <td style="text-align:center; font-weight:900; ${item.totalScore < state.baseScore ? 'color:var(--danger-red)' : 'color:var(--primary-dark)'}">
                     ${formatNum(item.totalScore)}
                 </td>
                 <td style="text-align:center; font-weight:800;">${item.rank}</td>
                 <td style="text-align:center;">
-                    <button class="btn-grade-card" style="padding:4px 8px;" onclick="openDrawerById(${item.id})">✎</button>
+                    <button class="btn-grade-card" style="padding:4px 8px;" onclick="openDrawerById(${item.id})">${state.locked ? '🔒' : '✎'}</button>
                 </td>
             </tr>
         `;
@@ -648,6 +1479,8 @@ function populateDrawer() {
     elements.drawerNote.value = item.note || '';
 
     refreshDrawerHeader();
+    state.drawerOriginal = { ...item };
+    updateDrawerLockUI();
 
     const filtered = getFilteredItems();
     state.activeModalIndex = filtered.findIndex(entry => entry.id === state.activeItemId);
@@ -678,7 +1511,9 @@ function saveDrawerCurrentValues(options: any = {}) {
     const opts = options || {};
     const item = getActiveItem();
     if (!item) return false;
+    if (state.locked) return false;
 
+    const original = state.drawerOriginal || { ...item };
     const categoryInputs = [
         ['hocTap', elements.drawerHocTap],
         ['renLuyen', elements.drawerRenLuyen],
@@ -719,6 +1554,29 @@ function saveDrawerCurrentValues(options: any = {}) {
         item[entry[0]] = parsedValues[entry[0]];
     });
     item.note = String(elements.drawerNote.value).trim();
+
+    if (opts.normalize) {
+        const labels = { hocTap: 'Học tập', renLuyen: 'Rèn luyện', nvvs: 'NVVS', leTiet: 'Lễ tiết' };
+        const changes: string[] = [];
+
+        categoryInputs.forEach(entry => {
+            const category = entry[0];
+            if (Number(original[category]) !== Number(item[category])) {
+                changes.push(`${labels[category]}: ${formatNum(original[category])} → ${formatNum(item[category])}`);
+            }
+        });
+        if (String(original.quanSo || '') !== String(item.quanSo || '')) {
+            changes.push(`Quân số: ${original.quanSo || '—'} → ${item.quanSo || '—'}`);
+        }
+        if (String(original.note || '') !== String(item.note || '')) {
+            changes.push('Ghi chú đã thay đổi');
+        }
+
+        if (changes.length) {
+            logAudit('Sửa điểm', `TĐ ${item.id} · ${changes.join('; ')}`);
+            state.drawerOriginal = { ...item };
+        }
+    }
 
     updateCalculations();
     refreshDrawerHeader();
@@ -782,9 +1640,16 @@ function saveAndGoNext() {
 }
 
 function updateItemQuanSo(id, value) {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi sửa quân số.');
+        render();
+        return;
+    }
+
     const item = state.items.find(entry => entry.id === id);
     if (!item) return;
 
+    const oldValue = item.quanSo;
     const raw = String(value).trim();
     if (raw === '') {
         item.quanSo = '';
@@ -798,15 +1663,30 @@ function updateItemQuanSo(id, value) {
         item.quanSo = normalized;
     }
 
+    if (String(oldValue || '') !== String(item.quanSo || '')) {
+        logAudit('Sửa quân số', `TĐ ${id}: ${oldValue || '—'} → ${item.quanSo || '—'}`);
+    }
+
     updateCalculations();
     render();
 }
 
 function updateItemCat(id, category, value) {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi sửa điểm.');
+        render();
+        return;
+    }
+
     const item = state.items.find(entry => entry.id === id);
     if (!item) return;
 
+    const labels = { hocTap: 'Học tập', renLuyen: 'Rèn luyện', nvvs: 'NVVS', leTiet: 'Lễ tiết' };
+    const oldValue = item[category];
     item[category] = parseScoreVal(value);
+    if (Number(oldValue) !== Number(item[category])) {
+        logAudit('Sửa điểm', `TĐ ${id} · ${labels[category] || category}: ${formatNum(oldValue)} → ${formatNum(item[category])}`);
+    }
     updateCalculations();
     render();
 }
@@ -903,6 +1783,11 @@ function parsePlatoonConfig(text) {
 }
 
 async function saveSettings() {
+    if (state.locked) {
+        showSettingsError(['Sổ điểm đã khóa. Hãy mở khóa trong mục Nhật Ký & Khóa Sổ trước khi đổi cấu hình.']);
+        return;
+    }
+
     const parsed = parsePlatoonConfig(elements.setPlatoons.value);
     if (parsed.errors.length) {
         showSettingsError(parsed.errors);
@@ -917,6 +1802,9 @@ async function saveSettings() {
 
     const courseName = elements.setCourseName.value.trim() || DEFAULT_META.courseName;
     const unitName = elements.setUnitName.value.trim() || DEFAULT_META.unitName;
+    const oldCourseName = state.courseName;
+    const oldBaseScore = state.baseScore;
+    const oldItemCount = state.items.length;
     const existingById: Map<number, any> = new Map(state.items.map((item: any) => [item.id, item]));
     const newIds = new Set(parsed.items.map(item => item.id));
     const removedWithData = state.items.filter(item => {
@@ -931,6 +1819,8 @@ async function saveSettings() {
         );
         if (!ok) return;
     }
+
+    captureSnapshot('Trước khi đổi cấu hình', true);
 
     state.items = parsed.items.map((entry: any) => {
         const old: any = existingById.get(entry.id);
@@ -961,6 +1851,11 @@ async function saveSettings() {
     if (state.activeBuilding !== 'ALL' && !state.items.some(item => item.building === state.activeBuilding)) {
         state.activeBuilding = 'ALL';
     }
+
+    logAudit(
+        'Đổi cấu hình',
+        `Khóa: ${oldCourseName} → ${state.courseName}; điểm gốc: ${formatNum(oldBaseScore)} → ${formatNum(state.baseScore)}; số TĐ: ${oldItemCount} → ${state.items.length}`
+    );
 
     updateCalculations();
     applyMetaToUI();
@@ -1052,6 +1947,10 @@ function printReport() {
 
 async function importFromFile(file) {
     if (!file) return;
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi nhập file sao lưu.');
+        return;
+    }
 
     let text = '';
     try {
@@ -1099,6 +1998,8 @@ async function importFromFile(file) {
     );
     if (!ok) return;
 
+    captureSnapshot('Trước khi nhập file sao lưu', true);
+
     const meta = (!Array.isArray(payload) && payload.meta && typeof payload.meta === 'object')
         ? payload.meta
         : null;
@@ -1113,6 +2014,7 @@ async function importFromFile(file) {
     elements.searchInput.value = '';
     elements.btnClearSearch.style.display = 'none';
 
+    logAudit('Nhập file sao lưu', `${items.length} trung đội từ ${file.name}`);
     updateCalculations();
     applyMetaToUI();
     renderBuildingPills();
@@ -1130,8 +2032,9 @@ function clearSheetError() {
 }
 
 function showSheetError(errors) {
-    const list = errors.slice(0, 6).join('\n');
-    const suffix = errors.length > 6 ? `\n... và ${errors.length - 6} lỗi khác.` : '';
+    const limit = 30;
+    const list = errors.slice(0, limit).join('\n');
+    const suffix = errors.length > limit ? `\n... và ${errors.length - limit} lỗi khác.` : '';
     elements.sheetError.textContent = list + suffix;
     elements.sheetError.classList.add('show');
 }
@@ -1333,7 +2236,7 @@ function buildRoomSheetImport(rows: string[][], layout: any, startLine: number) 
     };
 }
 
-function buildSheetImport(rows, hasHeader) {
+function buildSheetImport(rows, hasHeader, manualMap: any = null, manualHeaderIndex = 0) {
     const cleanRows = (rows || []).filter(row =>
         Array.isArray(row) && row.some(cell => String(cell === undefined || cell === null ? '' : cell).trim() !== '')
     );
@@ -1346,8 +2249,28 @@ function buildSheetImport(rows, hasHeader) {
     let dataRows = cleanRows;
     let map: any = null;
     let headerIndex = 0;
+    let manual = false;
 
-    if (hasHeader) {
+    const normalizedManual: Record<string, number> = {};
+    if (manualMap && typeof manualMap === 'object') {
+        Object.keys(manualMap).forEach(key => {
+            const index = Number(manualMap[key]);
+            if (Number.isInteger(index) && index >= 0) normalizedManual[key] = index;
+        });
+        manual = Object.keys(normalizedManual).length > 0;
+    }
+
+    if (manual) {
+        if (normalizedManual.id === undefined) {
+            return { fatal: 'Ghép cột thủ công cần chọn cột Số TĐ.' };
+        }
+        headerIndex = hasHeader
+            ? Math.min(Math.max(Number(manualHeaderIndex) || 0, 0), Math.max(cleanRows.length - 1, 0))
+            : 0;
+        headerRow = hasHeader ? cleanRows[headerIndex] : null;
+        dataRows = hasHeader ? cleanRows.slice(headerIndex + 1) : cleanRows;
+        map = normalizedManual;
+    } else if (hasHeader) {
         const scanLimit = Math.min(cleanRows.length, 15);
         let best: any = { score: -1, index: 0, map: null };
 
@@ -1375,9 +2298,14 @@ function buildSheetImport(rows, hasHeader) {
         return { fatal: 'Không có dòng dữ liệu sau dòng tiêu đề.' };
     }
 
-    const roomLayout = hasHeader ? detectRoomSheetLayout(headerRow) : null;
+    const roomLayout = hasHeader && !manual ? detectRoomSheetLayout(headerRow) : null;
     if (roomLayout) {
-        return buildRoomSheetImport(dataRows, roomLayout, headerIndex + 2);
+        const roomResult: any = buildRoomSheetImport(dataRows, roomLayout, headerIndex + 2);
+        if (roomResult && !roomResult.fatal) {
+            roomResult.headerIndex = headerIndex;
+            roomResult.manual = false;
+        }
+        return roomResult;
     }
 
     const entries = [];
@@ -1454,7 +2382,7 @@ function buildSheetImport(rows, hasHeader) {
         return { fatal: 'Không có dòng dữ liệu hợp lệ để nhập.' };
     }
 
-    return { entries, errors, map, headerRow, dataRows };
+    return { entries, errors, map, headerRow, dataRows, headerIndex, manual };
 }
 
 function resetSheetPreview(message = '') {
@@ -1497,9 +2425,10 @@ function renderSheetPreview(result) {
         ? 'Cập nhật theo số TĐ'
         : 'Thay thế danh sách hiện tại';
     const noHeaderText = elements.sheetHasHeader.checked ? '' : ' Không có tiêu đề: đang dùng thứ tự cột mặc định.';
+    const manualText = result.manual ? ' Đang dùng ghép cột thủ công.' : '';
     const errorText = result.errors.length ? ` Bỏ qua ${result.errors.length} dòng lỗi.` : '';
 
-    elements.sheetSummary.innerHTML = `Đã nhận diện <strong>${result.entries.length}</strong> trung đội. Chế độ: <strong>${modeText}</strong>.${noHeaderText}${errorText}`;
+    elements.sheetSummary.innerHTML = `Đã nhận diện <strong>${result.entries.length}</strong> trung đội. Chế độ: <strong>${modeText}</strong>.${noHeaderText}${manualText}${errorText}`;
     elements.btnApplySheet.disabled = false;
 
     if (result.errors.length) {
@@ -1507,6 +2436,166 @@ function renderSheetPreview(result) {
     } else {
         clearSheetError();
     }
+}
+
+function getCurrentSheetRows(): string[][] {
+    if (!sheetImportState) return [];
+    if (sheetSource === 'paste') return sheetImportState.pasteRows || [];
+    const sheet = sheetImportState.sheets ? sheetImportState.sheets[sheetImportState.activeSheetIndex] : null;
+    return sheet ? sheet.rows : (sheetImportState.fileRows || []);
+}
+
+function renderSheetMapping(result) {
+    if (!elements.sheetMappingGrid) return;
+
+    const rows = getCurrentSheetRows();
+    if (!rows.length) {
+        elements.sheetMappingGrid.innerHTML = '<div class="hint">Chọn file hoặc dán dữ liệu để ghép cột.</div>';
+        return;
+    }
+
+    const hasHeader = Boolean(elements.sheetHasHeader.checked);
+    const headerIndex = result && Number.isInteger(result.headerIndex) ? result.headerIndex : 0;
+    const headerRow = result && result.headerRow
+        ? result.headerRow
+        : (hasHeader ? (rows[headerIndex] || []) : (rows[0] || []));
+    const map = (sheetImportState && sheetImportState.manualMap)
+        || (result && result.map)
+        || {};
+    const fields = [
+        ['id', 'Số TĐ'],
+        ['building', 'Tòa'],
+        ['rooms', 'Phòng'],
+        ['quanSo', 'Quân số'],
+        ['hocTap', 'Học tập'],
+        ['renLuyen', 'Rèn luyện'],
+        ['nvvs', 'NVVS'],
+        ['leTiet', 'Lễ tiết'],
+        ['note', 'Ghi chú']
+    ];
+
+    elements.sheetMappingGrid.innerHTML = fields.map(field => {
+        const key = field[0];
+        const label = field[1];
+        const options = ['<option value="-1">— Bỏ qua —</option>'].concat(
+            (headerRow || []).map((cell, index) => {
+                const raw = String(cell === undefined || cell === null ? '' : cell).trim();
+                const text = hasHeader && raw ? raw : `Cột ${index + 1}`;
+                return `<option value="${index}">${escapeHtml(text)}</option>`;
+            })
+        ).join('');
+        return `<div class="mapping-field"><label for="map_${key}">${label}</label><select id="map_${key}" data-map-field="${key}">${options}</select></div>`;
+    }).join('');
+
+    fields.forEach(field => {
+        const select = elements.sheetMappingGrid.querySelector(`select[data-map-field="${field[0]}"]`) as HTMLSelectElement | null;
+        if (!select) return;
+        const value = map[field[0]];
+        select.value = value !== undefined && value !== null ? String(value) : '-1';
+    });
+}
+
+function collectManualMapping(): Record<string, number> {
+    const map: Record<string, number> = {};
+    if (!elements.sheetMappingGrid) return map;
+    elements.sheetMappingGrid.querySelectorAll('select[data-map-field]').forEach(select => {
+        const element = select as HTMLSelectElement;
+        const field = element.dataset.mapField || '';
+        const index = Number(element.value);
+        if (field && Number.isInteger(index) && index >= 0) {
+            map[field] = index;
+        }
+    });
+    return map;
+}
+
+function readMappingPresets(): MappingPreset[] {
+    const presets = readJson<MappingPreset[]>(MAPPING_KEY, []);
+    return Array.isArray(presets) ? presets.filter(preset => preset && preset.id && preset.map) : [];
+}
+
+function renderMappingPresets() {
+    if (!elements.mappingPresetSelect) return;
+    const presets = readMappingPresets();
+    elements.mappingPresetSelect.innerHTML = '<option value="">— Mẫu đã lưu —</option>' + presets.map(preset =>
+        `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`
+    ).join('');
+}
+
+function saveMappingPreset() {
+    const map = (sheetImportState && sheetImportState.manualMap) || (sheetImportState && sheetImportState.result && sheetImportState.result.map);
+    if (!map || map.id === undefined) {
+        showToast('Hãy ghép cột Số TĐ trước khi lưu mẫu.');
+        return;
+    }
+
+    const name = String(elements.mappingName.value || '').trim()
+        || `Mẫu ${new Date().toLocaleDateString('vi-VN')}`;
+    const presets = readMappingPresets();
+    const existingIndex = presets.findIndex(preset => normalizeText(preset.name) === normalizeText(name));
+    const preset: MappingPreset = {
+        id: existingIndex >= 0 ? presets[existingIndex].id : `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        name,
+        map: { ...map },
+        hasHeader: Boolean(elements.sheetHasHeader.checked),
+        headerIndex: sheetImportState && sheetImportState.result && Number.isInteger(sheetImportState.result.headerIndex)
+            ? sheetImportState.result.headerIndex
+            : 0,
+        createdAt: new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) presets[existingIndex] = preset;
+    else presets.push(preset);
+
+    if (!writeJson(MAPPING_KEY, presets)) {
+        showToast('Không lưu được mẫu mapping trên thiết bị này.');
+        return;
+    }
+
+    if (sheetImportState) {
+        sheetImportState.manualMap = { ...map };
+        sheetImportState.manualHeaderIndex = sheetImportState.result && Number.isInteger(sheetImportState.result.headerIndex)
+            ? sheetImportState.result.headerIndex
+            : 0;
+    }
+    renderMappingPresets();
+    elements.mappingPresetSelect.value = preset.id;
+    showToast(`Đã lưu mẫu mapping "${name}".`);
+}
+
+function applyMappingPreset() {
+    const id = elements.mappingPresetSelect.value;
+    if (!id || !sheetImportState) return;
+    const preset = readMappingPresets().find(entry => entry.id === id);
+    if (!preset) {
+        showToast('Không tìm thấy mẫu mapping.');
+        return;
+    }
+
+    sheetImportState.manualMap = { ...preset.map };
+    sheetImportState.manualHeaderIndex = Number.isInteger(preset.headerIndex) ? Number(preset.headerIndex) : 0;
+    elements.sheetHasHeader.checked = preset.hasHeader !== false;
+    elements.mappingName.value = preset.name;
+    updateSheetPreview();
+    showToast(`Đã áp dụng mẫu mapping "${preset.name}".`);
+}
+
+async function deleteMappingPreset() {
+    const id = elements.mappingPresetSelect.value;
+    if (!id) {
+        showToast('Hãy chọn mẫu mapping cần xóa.');
+        return;
+    }
+    const presets = readMappingPresets();
+    const preset = presets.find(entry => entry.id === id);
+    if (!preset) return;
+
+    const ok = await customConfirm('Xóa Mẫu Mapping', `Xóa mẫu mapping "${preset.name}"?`);
+    if (!ok) return;
+
+    writeJson(MAPPING_KEY, presets.filter(entry => entry.id !== id));
+    renderMappingPresets();
+    showToast('Đã xóa mẫu mapping.');
 }
 
 function updateSheetSourceUI(source) {
@@ -1566,27 +2655,44 @@ function updateSheetPreview() {
     if (!rows.length) {
         resetSheetPreview();
         clearSheetError();
+        renderSheetMapping(null);
         return;
     }
 
-    const result = buildSheetImport(rows, elements.sheetHasHeader.checked);
+    const result = buildSheetImport(
+        rows,
+        elements.sheetHasHeader.checked,
+        sheetImportState ? sheetImportState.manualMap : null,
+        sheetImportState ? sheetImportState.manualHeaderIndex : 0
+    );
     if (sheetImportState) sheetImportState.result = result;
     renderSheetPreview(result);
+    renderSheetMapping(result);
 }
 
 function setSheetSource(source) {
     updateSheetSourceUI(source);
+    if (sheetImportState) {
+        sheetImportState.manualMap = null;
+        sheetImportState.manualHeaderIndex = 0;
+    }
     updateSheetPreview();
 }
 
 function openSheetModal() {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi nhập Excel.');
+        return;
+    }
     sheetImportState = {
         fileName: '',
         sheets: [],
         activeSheetIndex: 0,
         fileRows: [],
         pasteRows: [],
-        result: null
+        result: null,
+        manualMap: null,
+        manualHeaderIndex: 0
     };
     sheetSource = 'file';
     elements.sheetFileInput.value = '';
@@ -1597,7 +2703,9 @@ function openSheetModal() {
     clearSheetError();
     renderSheetSelect();
     updateSheetSourceUI('file');
+    renderMappingPresets();
     resetSheetPreview();
+    renderSheetMapping(null);
     elements.sheetModal.classList.add('open');
 }
 
@@ -1624,6 +2732,8 @@ async function handleSheetFile(file) {
         }
 
         sheetImportState.sheets = sheets;
+        sheetImportState.manualMap = null;
+        sheetImportState.manualHeaderIndex = 0;
         sheetImportState.activeSheetIndex = chooseDefaultSheetIndex(sheets);
         sheetImportState.fileRows = sheets[sheetImportState.activeSheetIndex].rows;
         sheetImportState.fileName = file.name;
@@ -1639,6 +2749,7 @@ async function handleSheetFile(file) {
         renderSheetSelect();
         updateSheetSourceUI('file');
         resetSheetPreview();
+        renderSheetMapping(null);
         showSheetError([error.message || 'Không đọc được file.']);
     }
 }
@@ -1653,6 +2764,8 @@ function fillSheetSample() {
     updateSheetSourceUI('paste');
     elements.sheetPasteInput.value = sample;
     sheetImportState.pasteRows = parseSheetText(sample);
+    sheetImportState.manualMap = null;
+    sheetImportState.manualHeaderIndex = 0;
     updateSheetPreview();
 }
 
@@ -1668,6 +2781,10 @@ function applySheetEntry(item, entry) {
 }
 
 async function applySheetImport() {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi nhập Excel.');
+        return;
+    }
     if (!sheetImportState || !sheetImportState.result || sheetImportState.result.fatal) return;
 
     const result = sheetImportState.result;
@@ -1693,6 +2810,8 @@ async function applySheetImport() {
             return;
         }
     }
+
+    captureSnapshot('Trước khi nhập Excel', true);
 
     let updated = 0;
     let skipped = 0;
@@ -1734,6 +2853,11 @@ async function applySheetImport() {
         state.activeBuilding = 'ALL';
     }
 
+    logAudit(
+        'Nhập Excel',
+        `${mode === 'replace' ? 'Thay thế' : 'Cập nhật'} ${updated} trung đội từ ${sheetImportState.fileName || 'dữ liệu dán'}`
+    );
+
     updateCalculations();
     renderBuildingPills();
     render();
@@ -1761,10 +2885,14 @@ function showToast(message) {
     }, 2600);
 }
 
-function customConfirm(title, message) {
-    return new Promise(resolve => {
+function customConfirm(title: string, message: string): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
         elements.dialogTitle.textContent = title;
         elements.dialogMessage.textContent = message;
+        if (elements.dialogInput) {
+            elements.dialogInput.hidden = true;
+            elements.dialogInput.value = '';
+        }
         elements.customDialog.classList.add('open');
 
         let settled = false;
@@ -1795,6 +2923,53 @@ function customConfirm(title, message) {
         elements.btnDialogConfirm.addEventListener('click', onConfirm);
         elements.btnDialogCancel.addEventListener('click', onCancel);
         document.addEventListener('keydown', onKeyDown);
+    });
+}
+
+function customPrompt(title: string, message: string, defaultValue = ''): Promise<string | null> {
+    return new Promise<string | null>(resolve => {
+        elements.dialogTitle.textContent = title;
+        elements.dialogMessage.textContent = message;
+        elements.dialogInput.hidden = false;
+        elements.dialogInput.value = defaultValue;
+        elements.customDialog.classList.add('open');
+
+        let settled = false;
+
+        const finish = value => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(value);
+        };
+
+        const onConfirm = () => finish(elements.dialogInput.value.trim() || null);
+        const onCancel = () => finish(null);
+        const onKeyDown = event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                onCancel();
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                onConfirm();
+            }
+        };
+
+        function cleanup() {
+            elements.customDialog.classList.remove('open');
+            elements.dialogInput.hidden = true;
+            elements.btnDialogConfirm.removeEventListener('click', onConfirm);
+            elements.btnDialogCancel.removeEventListener('click', onCancel);
+            document.removeEventListener('keydown', onKeyDown);
+        }
+
+        elements.btnDialogConfirm.addEventListener('click', onConfirm);
+        elements.btnDialogCancel.addEventListener('click', onCancel);
+        document.addEventListener('keydown', onKeyDown);
+        setTimeout(() => {
+            elements.dialogInput.focus();
+            elements.dialogInput.select();
+        }, 50);
     });
 }
 
@@ -1832,7 +3007,12 @@ function setupEventListeners() {
 
     // Auto-negative toggle
     elements.btnAutoNegative.addEventListener('click', () => {
+        if (state.locked) {
+            showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi đổi cách nhập điểm.');
+            return;
+        }
         state.autoNegative = !state.autoNegative;
+        logAudit('Đổi cách nhập điểm', state.autoNegative ? 'Bật tự động âm' : 'Tắt tự động âm');
         elements.btnAutoNegative.classList.toggle('active', state.autoNegative);
         elements.btnAutoNegative.querySelector('span').textContent = state.autoNegative ? 'Tự âm (-)' : 'Tự do';
         saveData();
@@ -1851,28 +3031,139 @@ function setupEventListeners() {
     // Dates
     [elements.inputNgay, elements.inputThang, elements.inputNam].forEach(input => {
         input.addEventListener('change', () => {
+            if (state.locked) {
+                showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi đổi ngày chấm.');
+                applyMetaToUI();
+                return;
+            }
+            const oldDate = `${state.date.ngay}/${state.date.thang}/${state.date.nam}`;
             state.date.ngay = clampInt(elements.inputNgay.value, 1, 31, state.date.ngay);
             state.date.thang = clampInt(elements.inputThang.value, 1, 12, state.date.thang);
             state.date.nam = clampInt(elements.inputNam.value, 2000, 2100, state.date.nam);
             elements.inputNgay.value = state.date.ngay;
             elements.inputThang.value = state.date.thang;
             elements.inputNam.value = state.date.nam;
+            const newDate = `${state.date.ngay}/${state.date.thang}/${state.date.nam}`;
+            if (oldDate !== newDate) logAudit('Đổi ngày chấm', `${oldDate} → ${newDate}`);
             updatePrintDate();
             saveData();
         });
     });
 
     elements.btnToday.addEventListener('click', () => {
+        if (state.locked) {
+            showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi đổi ngày chấm.');
+            return;
+        }
         const today = new Date();
+        const oldDate = `${state.date.ngay}/${state.date.thang}/${state.date.nam}`;
         state.date.ngay = today.getDate();
         state.date.thang = today.getMonth() + 1;
         state.date.nam = today.getFullYear();
         elements.inputNgay.value = state.date.ngay;
         elements.inputThang.value = state.date.thang;
         elements.inputNam.value = state.date.nam;
+        const newDate = `${state.date.ngay}/${state.date.thang}/${state.date.nam}`;
+        if (oldDate !== newDate) logAudit('Đổi ngày chấm', `${oldDate} → ${newDate}`);
         updatePrintDate();
         saveData();
         showToast('Đã chọn ngày hôm nay.');
+    });
+
+    // Course management
+    elements.courseSelect.addEventListener('change', () => switchCourse(elements.courseSelect.value));
+    elements.btnOpenCourses.addEventListener('click', openCourseModal);
+    elements.btnCloseCourses.addEventListener('click', closeCourseModal);
+    elements.btnCloseCoursesFooter.addEventListener('click', closeCourseModal);
+    elements.courseModal.addEventListener('click', event => {
+        if (event.target === elements.courseModal) closeCourseModal();
+    });
+    elements.btnCreateCourse.addEventListener('click', () => createCourseFromName(elements.newCourseName.value));
+    elements.newCourseName.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            createCourseFromName(elements.newCourseName.value);
+        }
+    });
+    elements.btnCloneCourse.addEventListener('click', async () => {
+        const name = await customPrompt(
+            'Nhân Bản Khóa Hiện Tại',
+            'Nhập tên cho khóa mới. Cấu hình, tòa/phòng và quân số được giữ lại; điểm và ghi chú sẽ đặt về 0.',
+            `${state.courseName} (bản sao)`
+        );
+        if (name) createCourseFromName(name, state.courseId);
+    });
+    elements.courseListEl.addEventListener('click', async event => {
+        const button = (event.target as HTMLElement).closest('[data-course-action]') as HTMLElement | null;
+        if (!button) return;
+
+        const id = button.dataset.courseId || '';
+        const action = button.dataset.courseAction;
+        const summary = state.courseList.find(course => course.id === id);
+
+        if (action === 'open') {
+            switchCourse(id);
+        } else if (action === 'rename' && summary) {
+            const name = await customPrompt('Đổi Tên Khóa', 'Nhập tên mới cho khóa:', summary.courseName);
+            if (name) await renameCourse(id, name);
+        } else if (action === 'clone' && summary) {
+            const name = await customPrompt(
+                'Nhân Bản Khóa',
+                'Nhập tên cho khóa mới. Điểm và ghi chú sẽ được đặt về 0.',
+                `${summary.courseName} (bản sao)`
+            );
+            if (name) createCourseFromName(name, id);
+        } else if (action === 'delete') {
+            await deleteCourse(id);
+        }
+    });
+
+    // Backups
+    elements.btnOpenBackups.addEventListener('click', openBackupModal);
+    elements.btnCloseBackups.addEventListener('click', closeBackupModal);
+    elements.btnCloseBackupsFooter.addEventListener('click', closeBackupModal);
+    elements.btnCreateBackup.addEventListener('click', createBackupNow);
+    elements.backupModal.addEventListener('click', event => {
+        if (event.target === elements.backupModal) closeBackupModal();
+    });
+    elements.backupListEl.addEventListener('click', async event => {
+        const button = (event.target as HTMLElement).closest('[data-backup-action]') as HTMLElement | null;
+        if (!button) return;
+        const id = button.dataset.backupId || '';
+        if (button.dataset.backupAction === 'restore') {
+            await restoreBackup(id);
+        } else if (button.dataset.backupAction === 'delete') {
+            await removeBackup(id);
+        }
+    });
+
+    // Cloud sync
+    elements.btnOpenCloud.addEventListener('click', openCloudModal);
+    elements.btnCloseCloud.addEventListener('click', closeCloudModal);
+    elements.btnCloseCloudFooter.addEventListener('click', closeCloudModal);
+    elements.btnCloudSave.addEventListener('click', saveCloudForm);
+    elements.btnCloudTest.addEventListener('click', testCloud);
+    elements.btnCloudPush.addEventListener('click', pushCloudNow);
+    elements.btnCloudPull.addEventListener('click', pullCloudNow);
+    elements.cloudModal.addEventListener('click', event => {
+        if (event.target === elements.cloudModal) closeCloudModal();
+    });
+
+    // Audit log & score lock
+    elements.btnOpenAudit.addEventListener('click', openAuditModal);
+    elements.btnCloseAudit.addEventListener('click', closeAuditModal);
+    elements.btnCloseAuditFooter.addEventListener('click', closeAuditModal);
+    elements.btnToggleLock.addEventListener('click', toggleLock);
+    elements.btnSaveGrader.addEventListener('click', saveGraderName);
+    elements.btnExportAudit.addEventListener('click', exportAuditCSV);
+    elements.auditGraderName.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            saveGraderName();
+        }
+    });
+    elements.auditModal.addEventListener('click', event => {
+        if (event.target === elements.auditModal) closeAuditModal();
     });
 
     // Settings & help
@@ -1917,7 +3208,10 @@ function setupEventListeners() {
             updateSheetPreview();
         }, 250);
     });
-    elements.sheetHasHeader.addEventListener('change', updateSheetPreview);
+    elements.sheetHasHeader.addEventListener('change', () => {
+        if (sheetImportState) sheetImportState.manualHeaderIndex = 0;
+        updateSheetPreview();
+    });
     elements.sheetMode.addEventListener('change', updateSheetPreview);
     elements.sheetSelect.addEventListener('change', () => {
         if (!sheetImportState) return;
@@ -1925,11 +3219,24 @@ function setupEventListeners() {
         if (!Number.isInteger(index) || !sheetImportState.sheets[index]) return;
         sheetImportState.activeSheetIndex = index;
         sheetImportState.fileRows = sheetImportState.sheets[index].rows;
+        sheetImportState.manualMap = null;
+        sheetImportState.manualHeaderIndex = 0;
         updateSheetFileLabel();
         updateSheetPreview();
     });
     elements.btnSheetSample.addEventListener('click', fillSheetSample);
     elements.btnApplySheet.addEventListener('click', applySheetImport);
+    elements.sheetMappingGrid.addEventListener('change', () => {
+        if (!sheetImportState) return;
+        sheetImportState.manualMap = collectManualMapping();
+        sheetImportState.manualHeaderIndex = sheetImportState.result && Number.isInteger(sheetImportState.result.headerIndex)
+            ? sheetImportState.result.headerIndex
+            : 0;
+        updateSheetPreview();
+    });
+    elements.btnSaveMapping.addEventListener('click', saveMappingPreset);
+    elements.btnApplyMapping.addEventListener('click', applyMappingPreset);
+    elements.btnDeleteMapping.addEventListener('click', deleteMappingPreset);
 
     // Import / export / print
     elements.btnImportJSON.addEventListener('click', () => elements.importFile.click());
@@ -1944,11 +3251,17 @@ function setupEventListeners() {
 
     // Sample data
     document.getElementById('btnLoadSample').addEventListener('click', async () => {
+        if (state.locked) {
+            showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi nạp dữ liệu mẫu.');
+            return;
+        }
         const ok = await customConfirm(
             'Nạp Dữ Liệu Mẫu K337',
             'Nạp điểm mẫu K337 cho các trung đội trùng số?\nCác trung đội còn lại sẽ được đặt về 0 và dữ liệu đã chấm sẽ bị thay thế.'
         );
         if (!ok) return;
+
+        captureSnapshot('Trước khi nạp dữ liệu mẫu', true);
 
         state.items.forEach(item => {
             const sample = PHOTO_SAMPLE_DATA[item.id];
@@ -1966,6 +3279,7 @@ function setupEventListeners() {
             }
         });
 
+        logAudit('Nạp dữ liệu mẫu', `Đã nạp điểm mẫu K337 cho ${state.items.length} trung đội`);
         updateCalculations();
         render();
         showToast('Đã nạp dữ liệu mẫu từ ảnh!');
@@ -1973,11 +3287,17 @@ function setupEventListeners() {
 
     // Reset scores
     document.getElementById('btnResetScores').addEventListener('click', async () => {
+        if (state.locked) {
+            showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi đặt lại điểm.');
+            return;
+        }
         const ok = await customConfirm(
             'Đặt Lại Điểm Toàn Bộ',
             `Xóa toàn bộ điểm trừ và ghi chú của ${state.items.length} trung đội?\nDanh sách, tên khóa và ngày chấm được giữ nguyên.`
         );
         if (!ok) return;
+
+        captureSnapshot('Trước khi đặt lại điểm', true);
 
         state.items.forEach(item => {
             item.hocTap = 0;
@@ -1987,6 +3307,7 @@ function setupEventListeners() {
             item.note = '';
         });
 
+        logAudit('Đặt lại điểm', `Đặt lại điểm và ghi chú của ${state.items.length} trung đội`);
         updateCalculations();
         render();
         showToast('Đã đặt lại toàn bộ điểm về 0!');
@@ -2055,6 +3376,22 @@ function setupEventListeners() {
         if (elements.customDialog.classList.contains('open')) return;
 
         if (event.key === 'Escape') {
+            if (elements.courseModal.classList.contains('open')) {
+                closeCourseModal();
+                return;
+            }
+            if (elements.backupModal.classList.contains('open')) {
+                closeBackupModal();
+                return;
+            }
+            if (elements.cloudModal.classList.contains('open')) {
+                closeCloudModal();
+                return;
+            }
+            if (elements.auditModal.classList.contains('open')) {
+                closeAuditModal();
+                return;
+            }
             if (elements.settingsModal.classList.contains('open')) {
                 closeSettings();
                 return;
@@ -2078,7 +3415,11 @@ function setupEventListeners() {
         if (!elements.gradingDrawer.classList.contains('open')) return;
         if (elements.settingsModal.classList.contains('open')
             || elements.sheetModal.classList.contains('open')
-            || elements.helpModal.classList.contains('open')) return;
+            || elements.helpModal.classList.contains('open')
+            || elements.courseModal.classList.contains('open')
+            || elements.backupModal.classList.contains('open')
+            || elements.auditModal.classList.contains('open')
+            || elements.cloudModal.classList.contains('open')) return;
 
         const tagName = String((event.target as HTMLElement).tagName || '').toLowerCase();
         if (tagName === 'input' || tagName === 'textarea') return;
@@ -2096,12 +3437,29 @@ function setupEventListeners() {
 }
 
 // ============================================================
+// CONNECTIVITY
+// ============================================================
+function updateConnectivity() {
+    const offline = !navigator.onLine;
+    if (elements.offlineBadge) elements.offlineBadge.hidden = !offline;
+    document.body.classList.toggle('is-offline', offline);
+}
+
+function setupConnectivity() {
+    updateConnectivity();
+    window.addEventListener('online', updateConnectivity);
+    window.addEventListener('offline', updateConnectivity);
+}
+
+// ============================================================
 // START APP
 // ============================================================
 function initApp() {
+    state.cloudConfig = loadCloudConfig();
     loadSavedData();
     applyMetaToUI();
     setupEventListeners();
+    setupConnectivity();
     renderBuildingPills();
     updateCalculations();
     render();

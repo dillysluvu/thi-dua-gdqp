@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#064e3b">
+    <meta name="theme-color" content="#0b2f2a">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <meta name="description" content="Bảng theo dõi và đánh giá thi đua trung đội GDQP&AN, hỗ trợ nhập Excel và dùng trên điện thoại.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23064e3b'/%3E%3Cpath d='M32 10l6.6 13.4L53 25.4l-10.5 10.2 2.5 14.5L32 43.3 19 50.1l2.5-14.5L11 25.4l14.4-2z' fill='%23fbbf24'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
     <title>Bảng Theo Dõi & Đánh Giá Thi Đua - GDQP&AN</title>
     
     <!-- Vite + TypeScript app; CSS is bundled from src/styles.css. -->
@@ -17,14 +18,26 @@
     <header class="app-header no-print">
         <div class="header-content">
             <div class="brand-box">
-                <div class="brand-icon">★</div>
-                <div>
+                <div class="brand-icon" aria-hidden="true">
+                    <svg viewBox="0 0 64 64" role="img">
+                        <path d="M32 6l23 8.4v16.8c0 13.7-9.6 24.9-23 29.8C18.6 56.1 9 44.9 9 31.2V14.4z" fill="#0b2f2a" stroke="#f8dc8a" stroke-width="2.2"/>
+                        <path d="M32 14.5l5.1 10.4 11.5 1.7-8.3 8.1 2 11.4-10.3-5.4-10.3 5.4 2-11.4-8.3-8.1 11.5-1.7z" fill="#f4d06f"/>
+                        <path d="M22 50.5h20" stroke="#8de4cf" stroke-width="2.4" stroke-linecap="round"/>
+                        <path d="M26 55h12" stroke="#4fc3ae" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="brand-copy">
+                    <div class="brand-eyebrow">Hệ thống thi đua GDQP&amp;AN</div>
                     <h1 class="brand-title" id="appTitle">TỔ THI ĐUA - K337</h1>
                     <div class="brand-subtitle" id="appSubtitle">Trung Tâm GDQP&AN</div>
                 </div>
             </div>
 
             <div class="header-actions">
+                <label class="course-switcher" for="courseSelect">
+                    <span class="course-switcher-label">Khóa</span>
+                    <select id="courseSelect" class="course-select" aria-label="Chọn khóa học"></select>
+                </label>
                 <button class="btn-header" id="btnToggleView" aria-label="Đổi kiểu hiển thị">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/></svg>
                     <span id="viewModeLabel" class="no-mobile">Xem Bảng</span>
@@ -38,6 +51,22 @@
 
         <!-- DROPDOWN MENU -->
         <div class="dropdown-menu" id="dropdownMenu">
+            <button class="dropdown-item" id="btnOpenCourses">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/><path d="M18 13l4 4-4 4v-3h-4v-2h4v-3z"/></svg>
+                Quản Lý Khóa Học
+            </button>
+            <button class="dropdown-item" id="btnOpenBackups">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 1 0 8.94 10.06h-2.02A7 7 0 1 1 13 5v4l5-5-5-5v4z"/><path d="M12 8h2v5h4v2h-6V8z"/></svg>
+                Sao Lưu &amp; Khôi Phục
+            </button>
+            <button class="dropdown-item" id="btnOpenAudit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 11h5v2h-7V6h2v7z"/></svg>
+                Nhật Ký &amp; Khóa Sổ
+            </button>
+            <button class="dropdown-item" id="btnOpenCloud">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 6 20h13a5 5 0 0 0 .35-9.96zM19 18H6a4 4 0 0 1-.2-7.99l.8-.04.37-.7A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 5.4 4.5l.2 1.1 1.1.2A3 3 0 0 1 19 18z"/><path d="M11 10h2v4h3l-4 4-4-4h3z"/></svg>
+                Đồng Bộ Đám Mây
+            </button>
             <button class="dropdown-item" id="btnOpenSettings">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
                 Cấu Hình Khóa Học
@@ -81,6 +110,49 @@
 
     <!-- MAIN CONTAINER -->
     <main class="main-container no-print">
+
+        <!-- OVERVIEW STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Tổng Quân Số</div>
+                    <div class="stat-value" id="statQuanSo">1770/1770</div>
+                </div>
+                <div class="stat-icon icon-blue">
+                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Điểm TB Toàn Khoá</div>
+                    <div class="stat-value" id="statAvgScore">49.42</div>
+                </div>
+                <div class="stat-icon icon-green">
+                    <svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Đạt Điểm Gốc</div>
+                    <div class="stat-value" id="statPerfect">8</div>
+                </div>
+                <div class="stat-icon icon-gold">
+                    <svg viewBox="0 0 24 24"><path d="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61z"/></svg>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div>
+                    <div class="stat-label">Bị Trừ Điểm</div>
+                    <div class="stat-value" id="statDeducted">48</div>
+                </div>
+                <div class="stat-icon icon-red">
+                    <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                </div>
+            </div>
+        </div>
 
         <!-- SEARCH & FILTER CARD -->
         <div class="filter-card">
@@ -135,50 +207,19 @@
             </div>
         </div>
 
-        <!-- OVERVIEW STATS -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div>
-                    <div class="stat-label">Tổng Quân Số</div>
-                    <div class="stat-value" id="statQuanSo">1770/1770</div>
-                </div>
-                <div class="stat-icon icon-blue">
-                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div>
-                    <div class="stat-label">Điểm TB Toàn Khoá</div>
-                    <div class="stat-value" id="statAvgScore">49.42</div>
-                </div>
-                <div class="stat-icon icon-green">
-                    <svg viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div>
-                    <div class="stat-label">Đạt Điểm Gốc</div>
-                    <div class="stat-value" id="statPerfect">8</div>
-                </div>
-                <div class="stat-icon icon-gold">
-                    <svg viewBox="0 0 24 24"><path d="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61z"/></svg>
-                </div>
-            </div>
-
-            <div class="stat-card">
-                <div>
-                    <div class="stat-label">Bị Trừ Điểm</div>
-                    <div class="stat-value" id="statDeducted">48</div>
-                </div>
-                <div class="stat-icon icon-red">
-                    <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-                </div>
-            </div>
+        <div class="lock-notice" id="lockNotice" hidden>
+            <strong>Sổ điểm đã khóa.</strong> Các thao tác chấm điểm và chỉnh sửa dữ liệu đang bị chặn.
+            Mở menu ⋮ → <strong>Nhật Ký &amp; Khóa Sổ</strong> để mở khóa.
         </div>
 
         <!-- CARDS VIEW -->
+        <div class="list-heading">
+            <div>
+                <div class="list-kicker">Danh sách trung đội</div>
+                <h2 class="list-title">Kết quả chấm điểm</h2>
+            </div>
+            <div class="list-count" id="listCount">56 trung đội</div>
+        </div>
         <div class="cards-list" id="cardsList"></div>
 
         <!-- TABLE VIEW -->
@@ -208,7 +249,7 @@
 
     <!-- APP FOOTER -->
     <footer class="app-footer no-print">
-        <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">Dữ liệu được lưu tự động trên thiết bị</span></div>
+        <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">Dữ liệu được lưu tự động trên thiết bị</span><span class="lock-badge" id="lockBadge" hidden>Đã khóa sổ</span></div>
         <div>Mẹo: mở menu ⋮ → <strong>Xuất File Sao Lưu (.json)</strong> trước khi đổi máy hoặc bắt đầu khóa mới.</div>
         <div style="margin-top:4px;">Mã nguồn: <a href="https://github.com/dillysluvu/thi-dua-gdqp" target="_blank" rel="noopener" style="color:#0f766e; font-weight:700;">GitHub</a></div>
     </footer>
@@ -234,6 +275,10 @@
                     <div style="font-size:10px; color:#94a3b8; font-weight:800; text-transform:uppercase;">Thứ Hạng</div>
                     <div style="font-size:16px; font-weight:800; color:#fbbf24;" id="drawerRankVal">Hạng 1</div>
                 </div>
+            </div>
+
+            <div class="drawer-lock-notice" id="drawerLockNotice" hidden>
+                Sổ điểm đã khóa — chỉ xem. Mở khóa trong menu Nhật Ký &amp; Khóa Sổ để chỉnh sửa.
             </div>
 
             <div class="drawer-body">
@@ -390,6 +435,167 @@
         </div>
     </div>
 
+    <!-- COURSE MANAGER MODAL -->
+    <div class="modal-overlay" id="courseModal" role="dialog" aria-modal="true" aria-labelledby="courseTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="courseTitle">Quản Lý Khóa Học</div>
+                    <div class="modal-sub">Mỗi khóa có dữ liệu riêng. Chuyển khóa để chấm K337, K338… mà không ghi đè nhau.</div>
+                </div>
+                <button type="button" class="modal-close" id="btnCloseCourses" aria-label="Đóng">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="course-list" id="courseList"></div>
+
+                <div class="course-create-box">
+                    <label for="newCourseName">Tạo khóa mới</label>
+                    <div class="course-create-row">
+                        <input type="text" id="newCourseName" maxlength="60" placeholder="VD: K338">
+                        <button type="button" class="btn-modal primary" id="btnCreateCourse">Tạo khóa</button>
+                    </div>
+                    <button type="button" class="btn-modal secondary" id="btnCloneCourse">Nhân bản khóa hiện tại</button>
+                    <div class="hint">Khóa mới dùng danh sách 56 trung đội mẫu và điểm 0. Nhân bản giữ cấu hình, tòa/phòng, quân số nhưng đặt điểm về 0.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="spacer"></span>
+                <button type="button" class="btn-modal secondary" id="btnCloseCoursesFooter">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BACKUP / RESTORE MODAL -->
+    <div class="modal-overlay" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="backupTitle">Sao Lưu &amp; Khôi Phục</div>
+                    <div class="modal-sub">Bản sao lưu riêng cho khóa đang mở. Hệ thống tự sao lưu định kỳ và trước các thao tác quan trọng.</div>
+                </div>
+                <button type="button" class="modal-close" id="btnCloseBackups" aria-label="Đóng">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="backup-toolbar">
+                    <button type="button" class="btn-modal primary" id="btnCreateBackup">Tạo bản sao lưu ngay</button>
+                    <div class="hint">Giữ tối đa 15 bản gần nhất cho mỗi khóa. File JSON vẫn là bản sao an toàn nhất khi đổi máy.</div>
+                </div>
+                <div class="backup-list" id="backupList"></div>
+            </div>
+            <div class="modal-footer">
+                <span class="spacer"></span>
+                <button type="button" class="btn-modal secondary" id="btnCloseBackupsFooter">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLOUD SYNC MODAL -->
+    <div class="modal-overlay" id="cloudModal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="cloudTitle">Đồng Bộ Đám Mây</div>
+                    <div class="modal-sub">Tùy chọn kết nối Supabase để dùng dữ liệu trên nhiều thiết bị. Không bắt buộc để chấm điểm.</div>
+                </div>
+                <button type="button" class="modal-close" id="btnCloseCloud" aria-label="Đóng">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-tip" style="margin-bottom:12px;">
+                    <strong>Cần chuẩn bị:</strong> một project Supabase, bảng <code>course_sync</code> và anon key. Dữ liệu vẫn được lưu cục bộ; đám mây chỉ là bản sao thêm.
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="cloudUrl">Supabase URL</label>
+                        <input type="url" id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="cloudAnonKey">Anon key</label>
+                        <input type="text" id="cloudAnonKey" placeholder="eyJhbGci..." autocomplete="off">
+                    </div>
+                    <div class="field">
+                        <label for="cloudTable">Tên bảng</label>
+                        <input type="text" id="cloudTable" value="course_sync" placeholder="course_sync">
+                    </div>
+                    <div class="field">
+                        <label for="cloudSyncId">Mã nhóm đồng bộ</label>
+                        <input type="text" id="cloudSyncId" value="gdqpan" placeholder="gdqpan">
+                    </div>
+                </div>
+
+                <label class="checkbox-row" for="cloudAutoPush" style="margin:8px 0 12px;">
+                    <input type="checkbox" id="cloudAutoPush">
+                    Tự động đẩy lên sau khi sửa (chờ 6 giây)
+                </label>
+
+                <div class="cloud-actions">
+                    <button type="button" class="btn-modal secondary" id="btnCloudSave">Lưu cấu hình</button>
+                    <button type="button" class="btn-modal ghost" id="btnCloudTest">Kiểm tra kết nối</button>
+                    <button type="button" class="btn-modal primary" id="btnCloudPush">Đẩy lên</button>
+                    <button type="button" class="btn-modal secondary" id="btnCloudPull">Kéo về</button>
+                </div>
+
+                <div class="cloud-status" id="cloudStatus"></div>
+
+                <details class="cloud-help">
+                    <summary>SQL tạo bảng Supabase</summary>
+                    <pre>create table public.course_sync (
+  id text primary key,
+  course_id text not null,
+  payload jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.course_sync enable row level security;
+create policy "course_sync_all" on public.course_sync
+  for all using (true) with check (true);</pre>
+                    <div class="hint">Chỉ dùng anon key trong ứng dụng tĩnh. Với dữ liệu thật, nên giới hạn policy theo người dùng hoặc dùng backend trung gian.</div>
+                </details>
+            </div>
+            <div class="modal-footer">
+                <span class="spacer"></span>
+                <button type="button" class="btn-modal secondary" id="btnCloseCloudFooter">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUDIT / LOCK MODAL -->
+    <div class="modal-overlay" id="auditModal" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="auditTitle">Nhật Ký &amp; Khóa Sổ</div>
+                    <div class="modal-sub">Theo dõi ai đã sửa điểm, khóa sổ sau khi hoàn tất để tránh chỉnh sửa nhầm.</div>
+                </div>
+                <button type="button" class="modal-close" id="btnCloseAudit" aria-label="Đóng">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="lock-panel">
+                    <div>
+                        <div class="lock-status" id="lockStatusText">Sổ điểm đang mở</div>
+                        <div class="lock-detail" id="lockStatusDetail">Có thể chấm điểm và sửa dữ liệu.</div>
+                    </div>
+                    <button type="button" class="btn-modal danger" id="btnToggleLock">Khóa sổ điểm</button>
+                </div>
+
+                <div class="grader-row">
+                    <label for="auditGraderName">Người chấm / người chịu trách nhiệm</label>
+                    <div class="grader-input-row">
+                        <input type="text" id="auditGraderName" maxlength="60" placeholder="VD: Giảng viên Nguyễn Văn A">
+                        <button type="button" class="btn-modal secondary" id="btnSaveGrader">Lưu</button>
+                    </div>
+                </div>
+
+                <div class="audit-heading">Nhật ký thay đổi gần nhất</div>
+                <div class="audit-list" id="auditList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-modal ghost" id="btnExportAudit">Xuất CSV nhật ký</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn-modal secondary" id="btnCloseAuditFooter">Đóng</button>
+            </div>
+        </div>
+    </div>
+
     <!-- EXCEL / GOOGLE SHEETS IMPORT MODAL -->
     <div class="modal-overlay" id="sheetModal" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
         <div class="modal-box">
@@ -446,6 +652,21 @@
                     Có thể đổi thứ tự cột nếu có dòng tiêu đề. Chế độ cập nhật chỉ cần cột <strong>TĐ</strong> và các cột điểm cần sửa.
                     File Excel nhiều sheet: chọn <strong>Trang tính</strong> cần nhập ở phía trên.
                 </div>
+
+                <details class="mapping-box" id="sheetMappingBox">
+                    <summary>Ghép cột thủ công &amp; mẫu mapping</summary>
+                    <div class="mapping-grid" id="sheetMappingGrid"></div>
+                    <div class="mapping-preset-row">
+                        <input type="text" id="mappingName" maxlength="60" placeholder="Tên mẫu, VD: Mẫu K337">
+                        <button type="button" class="btn-modal secondary" id="btnSaveMapping">Lưu mẫu</button>
+                    </div>
+                    <div class="mapping-preset-row">
+                        <select id="mappingPresetSelect"></select>
+                        <button type="button" class="btn-modal secondary" id="btnApplyMapping">Áp dụng</button>
+                        <button type="button" class="btn-modal ghost" id="btnDeleteMapping">Xóa</button>
+                    </div>
+                    <div class="hint">Dùng khi file có tên cột khác hoặc thứ tự cột không chuẩn. Mẫu mapping được lưu trên thiết bị này để dùng lại cho các khóa sau.</div>
+                </details>
 
                 <div class="form-error" id="sheetError"></div>
 
@@ -518,11 +739,18 @@
         <div class="dialog-box">
             <div class="dialog-title" id="dialogTitle">Xác nhận</div>
             <div class="dialog-message" id="dialogMessage">Bạn có chắc chắn muốn thực hiện?</div>
+            <input type="text" id="dialogInput" class="dialog-input" hidden>
             <div class="dialog-actions">
                 <button class="btn-dialog cancel" id="btnDialogCancel">Hủy</button>
                 <button class="btn-dialog confirm" id="btnDialogConfirm">Đồng ý</button>
             </div>
         </div>
+    </div>
+
+    <!-- OFFLINE BADGE -->
+    <div class="offline-badge" id="offlineBadge" hidden>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3l18 18-1.4 1.4L17 18.8V21H7v-2.2L3.6 16.6A10 10 0 0 1 3 3zM12 2c5.5 0 10 4.5 10 10 0 2.1-.65 4.05-1.76 5.67L18.6 15.9A7 7 0 0 0 8.1 5.4L5.8 3.1A9.96 9.96 0 0 1 12 2z"/></svg>
+        Đang ngoại tuyến — dữ liệu vẫn được lưu trên thiết bị
     </div>
 
     <!-- TOAST NOTIFICATION -->
