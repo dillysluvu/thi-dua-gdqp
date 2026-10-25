@@ -1987,6 +1987,10 @@
                         📄 Chọn file Excel (.xls, .xlsx) hoặc CSV / TSV
                     </button>
                     <div class="sheet-file-name" id="sheetFileName">Chưa chọn file. Hỗ trợ .xls (Excel 97-2003), .xlsx, .csv, .tsv.</div>
+                    <div class="field" id="sheetSelectField" style="display:none; margin-top:10px;">
+                        <label for="sheetSelect">Trang tính</label>
+                        <select id="sheetSelect"></select>
+                    </div>
                 </div>
 
                 <div class="sheet-panel" id="sheetPastePanel" style="display:none;">
@@ -2014,7 +2018,7 @@
                 <div class="hint" style="margin-top:8px;">
                     Cột hỗ trợ: <strong>TĐ, Tòa, Phòng, Quân số, Học tập, Rèn luyện, NVVS, Lễ tiết, Ghi chú</strong>.
                     Có thể đổi thứ tự cột nếu có dòng tiêu đề. Chế độ cập nhật chỉ cần cột <strong>TĐ</strong> và các cột điểm cần sửa.
-                    File Excel (<strong>.xls/.xlsx</strong>) chỉ đọc sheet đầu tiên.
+                    File Excel nhiều sheet: chọn <strong>Trang tính</strong> cần nhập ở phía trên.
                 </div>
 
                 <div class="form-error" id="sheetError"></div>
@@ -2365,6 +2369,8 @@
             sheetFileInput: document.getElementById('sheetFileInput'),
             btnChooseSheetFile: document.getElementById('btnChooseSheetFile'),
             sheetFileName: document.getElementById('sheetFileName'),
+            sheetSelectField: document.getElementById('sheetSelectField'),
+            sheetSelect: document.getElementById('sheetSelect'),
             sheetPasteInput: document.getElementById('sheetPasteInput'),
             sheetMode: document.getElementById('sheetMode'),
             sheetHasHeader: document.getElementById('sheetHasHeader'),
@@ -3681,42 +3687,28 @@
             return rows.filter(row => row.some(cell => String(cell === undefined || cell === null ? '' : cell).trim() !== ''));
         }
 
-        async function parseXlsxRows(bytes) {
+        async function parseXlsxSheets(bytes) {
             const entries = findZipEntries(bytes);
             if (!entries['xl/workbook.xml']) {
                 throw new Error('Không phải file Excel .xlsx hợp lệ.');
             }
 
-            let sheetPath = null;
-            try {
-                const workbookXml = await readZipText(bytes, entries['xl/workbook.xml']);
-                const workbookDoc = new DOMParser().parseFromString(workbookXml, 'application/xml');
-                const sheetNode = workbookDoc.getElementsByTagName('sheet')[0];
-                const relationshipId = sheetNode
-                    ? (sheetNode.getAttribute('r:id') || sheetNode.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id'))
-                    : null;
+            const workbookXml = await readZipText(bytes, entries['xl/workbook.xml']);
+            const workbookDoc = new DOMParser().parseFromString(workbookXml, 'application/xml');
+            const sheetNodes = Array.from(workbookDoc.getElementsByTagName('sheet'));
+            if (!sheetNodes.length) {
+                throw new Error('Không tìm thấy worksheet trong file .xlsx.');
+            }
 
-                if (relationshipId && entries['xl/_rels/workbook.xml.rels']) {
+            let relationships = [];
+            if (entries['xl/_rels/workbook.xml.rels']) {
+                try {
                     const relationshipXml = await readZipText(bytes, entries['xl/_rels/workbook.xml.rels']);
                     const relationshipDoc = new DOMParser().parseFromString(relationshipXml, 'application/xml');
-                    const relationships = Array.from(relationshipDoc.getElementsByTagName('Relationship'));
-                    const relationship = relationships.find(node => node.getAttribute('Id') === relationshipId);
-
-                    if (relationship) {
-                        let target = String(relationship.getAttribute('Target') || '').replace(/^\/+/, '');
-                        if (!target.startsWith('xl/')) target = 'xl/' + target;
-                        if (entries[target]) sheetPath = target;
-                    }
+                    relationships = Array.from(relationshipDoc.getElementsByTagName('Relationship'));
+                } catch (error) {
+                    console.warn('Không đọc được workbook relationships, dùng thứ tự sheet:', error);
                 }
-            } catch (error) {
-                console.warn('Không đọc được workbook relationships, dùng sheet đầu tiên:', error);
-            }
-
-            if (!sheetPath) {
-                sheetPath = Object.keys(entries).find(name => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name)) || null;
-            }
-            if (!sheetPath) {
-                throw new Error('Không tìm thấy worksheet trong file .xlsx.');
             }
 
             let sharedStrings = [];
@@ -3724,8 +3716,49 @@
                 sharedStrings = parseSharedStringsXml(await readZipText(bytes, entries['xl/sharedStrings.xml']));
             }
 
-            const worksheetXml = await readZipText(bytes, entries[sheetPath]);
-            return parseWorksheetXml(worksheetXml, sharedStrings);
+            const sheets = [];
+            for (let index = 0; index < sheetNodes.length; index++) {
+                const sheetNode = sheetNodes[index];
+                const name = sheetNode.getAttribute('name') || `Sheet ${index + 1}`;
+                const relationshipId = sheetNode.getAttribute('r:id')
+                    || sheetNode.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id');
+                let sheetPath = null;
+
+                if (relationshipId) {
+                    const relationship = relationships.find(node => node.getAttribute('Id') === relationshipId);
+                    if (relationship) {
+                        let target = String(relationship.getAttribute('Target') || '').replace(/^\/+/, '');
+                        if (!target.startsWith('xl/')) target = 'xl/' + target;
+                        if (entries[target]) sheetPath = target;
+                    }
+                }
+
+                if (!sheetPath) {
+                    const fallback = `xl/worksheets/sheet${index + 1}.xml`;
+                    if (entries[fallback]) sheetPath = fallback;
+                }
+                if (!sheetPath) continue;
+
+                try {
+                    const worksheetXml = await readZipText(bytes, entries[sheetPath]);
+                    sheets.push({ name, rows: parseWorksheetXml(worksheetXml, sharedStrings) });
+                } catch (error) {
+                    console.warn(`Không đọc được sheet "${name}":`, error);
+                    sheets.push({ name, rows: [] });
+                }
+            }
+
+            if (!sheets.length) {
+                throw new Error('Không tìm thấy worksheet trong file .xlsx.');
+            }
+
+            return sheets;
+        }
+
+        async function parseXlsxRows(bytes) {
+            const sheets = await parseXlsxSheets(bytes);
+            const sheet = sheets.find(item => item.rows.length);
+            return sheet ? sheet.rows : [];
         }
 
         // ============================================================
@@ -4161,7 +4194,30 @@
             return result;
         }
 
-        function xlsParseRows(bytes) {
+        function xlsParseBoundsheetName(payload) {
+            if (!payload || payload.length < 8) return '';
+            const length = payload[6];
+            const flags = payload[7];
+            let name = '';
+
+            if (flags & 0x01) {
+                for (let index = 0; index < length; index++) {
+                    const position = 8 + index * 2;
+                    if (position + 1 >= payload.length) break;
+                    name += String.fromCharCode(payload[position] | (payload[position + 1] << 8));
+                }
+            } else {
+                for (let index = 0; index < length; index++) {
+                    const position = 8 + index;
+                    if (position >= payload.length) break;
+                    name += String.fromCharCode(payload[position]);
+                }
+            }
+
+            return name.trim();
+        }
+
+        function xlsParseSheets(bytes) {
             const workbook = xlsExtractCfbWorkbook(bytes);
             const records = xlsReadBiffRecords(workbook, 0);
             if (!records.length || records[0].type !== 0x0809) {
@@ -4193,8 +4249,11 @@
                 }
                 collectingSst = false;
 
-                if (record.type === 0x0085 && record.payload.length >= 4) {
-                    sheets.push(xlsReadU32(record.payload, 0));
+                if (record.type === 0x0085 && record.payload.length >= 8) {
+                    sheets.push({
+                        offset: xlsReadU32(record.payload, 0),
+                        name: xlsParseBoundsheetName(record.payload) || `Sheet ${sheets.length + 1}`
+                    });
                 }
             });
 
@@ -4205,12 +4264,20 @@
             const sharedStrings = sstPayloads.length ? xlsParseSst(sstPayloads) : [];
             if (!sheets.length) throw new Error('Không tìm thấy sheet dữ liệu trong file .xls.');
 
-            for (const offset of sheets) {
-                const rows = xlsParseSheet(workbook, offset, sharedStrings);
-                if (rows.length) return rows;
-            }
+            return sheets.map(sheet => {
+                try {
+                    return { name: sheet.name, rows: xlsParseSheet(workbook, sheet.offset, sharedStrings) };
+                } catch (error) {
+                    console.warn(`Không đọc được sheet "${sheet.name}":`, error);
+                    return { name: sheet.name, rows: [] };
+                }
+            });
+        }
 
-            return [];
+        function xlsParseRows(bytes) {
+            const sheets = xlsParseSheets(bytes);
+            const sheet = sheets.find(item => item.rows.length);
+            return sheet ? sheet.rows : [];
         }
 
         function parseHtmlTableText(text) {
@@ -4274,26 +4341,26 @@
                 }
 
                 const bytes = new Uint8Array(await file.arrayBuffer());
-                if (xlsIsCfb(bytes)) return xlsParseRows(bytes);
-                if (xlsIsZip(bytes)) return parseXlsxRows(bytes);
+                if (xlsIsCfb(bytes)) return { sheets: xlsParseSheets(bytes) };
+                if (xlsIsZip(bytes)) return { sheets: await parseXlsxSheets(bytes) };
 
                 if (name.endsWith('.xls')) {
                     const text = decodeTextBytes(bytes);
                     if (/^\s*</.test(text)) {
                         const xmlRows = parseSpreadsheetXmlText(text);
-                        if (xmlRows.length) return xmlRows;
+                        if (xmlRows.length) return { sheets: [{ name: 'Dữ liệu', rows: xmlRows }] };
                         const htmlRows = parseHtmlTableText(text);
-                        if (htmlRows.length) return htmlRows;
+                        if (htmlRows.length) return { sheets: [{ name: 'Dữ liệu', rows: htmlRows }] };
                         throw new Error('File .xls dạng XML/HTML chưa đọc được. Hãy mở bằng Excel và lưu lại thành .xlsx hoặc .csv.');
                     }
-                    return parseSheetText(text);
+                    return { sheets: [{ name: 'Dữ liệu', rows: parseSheetText(text) }] };
                 }
 
                 throw new Error('Không phải file Excel .xlsx hợp lệ. Hãy kiểm tra lại file hoặc lưu thành .csv.');
             }
 
             const text = await readFileAsText(file);
-            return parseSheetText(text);
+            return { sheets: [{ name: 'Dữ liệu', rows: parseSheetText(text) }] };
         }
 
         function buildSheetColumnMap(headers) {
@@ -4344,6 +4411,155 @@
             return round1(adjusted);
         }
 
+        function scoreSheetHeader(row) {
+            const map = buildSheetColumnMap(row || []);
+            let score = 0;
+
+            if (map.id !== undefined) score += 1;
+            if (map.building !== undefined) score += 2;
+            if (map.rooms !== undefined) score += 2;
+            if (map.quanSo !== undefined) score += 2;
+            ['hocTap', 'renLuyen', 'nvvs', 'leTiet'].forEach(field => {
+                if (map[field] !== undefined) score += 1;
+            });
+
+            const headers = (row || []).map(cell => normalizeText(cell));
+            if (headers.some(header => header.includes('trung doi'))) score += 3;
+            if (headers.some(header => header.includes('phong o'))) score += 3;
+            if (headers.some(header => header.includes('quan so'))) score += 2;
+
+            return { score, map };
+        }
+
+        function chooseDefaultSheetIndex(sheets) {
+            let bestIndex = 0;
+            let bestScore = -1;
+
+            (sheets || []).forEach((sheet, index) => {
+                const rows = (sheet.rows || []).slice(0, 15);
+                let score = 0;
+                rows.forEach(row => {
+                    score = Math.max(score, scoreSheetHeader(row).score);
+                });
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestIndex = index;
+                }
+            });
+
+            return bestIndex;
+        }
+
+        function normalizeBuildingName(value) {
+            const raw = String(value === undefined || value === null ? '' : value).trim();
+            if (!raw) return '';
+            const clean = raw.replace(/^(toa|nha)\s+/i, '').trim();
+            if (/^[A-Za-z]\d+$/.test(clean)) return `Toà ${clean.toUpperCase()}`;
+            return raw;
+        }
+
+        function cleanRoomNumber(value) {
+            return String(value === undefined || value === null ? '' : value)
+                .trim()
+                .replace(/\.0+$/, '');
+        }
+
+        function detectRoomSheetLayout(headerRow) {
+            const headers = (headerRow || []).map(cell => normalizeText(cell));
+            const findColumn = (aliases, excludes = []) => headers.findIndex(header =>
+                aliases.some(alias => header === alias || header.includes(alias))
+                && !excludes.some(exclude => header.includes(exclude))
+            );
+
+            const platoon = findColumn(['trung doi'], ['tieu doi']);
+            const building = findColumn(['nha', 'toa']);
+            let rooms = findColumn(['phong o']);
+            if (rooms < 0) rooms = findColumn(['so phong', 'phong']);
+            const quanSo = findColumn(['quan so']);
+            const hasScore = ['hoc tap', 'ren luyen', 'nvvs', 'le tiet']
+                .some(alias => headers.some(header => header.includes(alias)));
+
+            if (platoon >= 0 && building >= 0 && rooms >= 0 && quanSo >= 0 && !hasScore) {
+                return { platoon, building, rooms, quanSo };
+            }
+            return null;
+        }
+
+        function buildRoomSheetImport(rows, layout, startLine) {
+            const groups = new Map();
+            const errors = [];
+            let current = null;
+            let currentBuilding = '';
+
+            (rows || []).forEach((row, index) => {
+                const lineNumber = startLine + index;
+                const platoonText = String(row[layout.platoon] === undefined || row[layout.platoon] === null ? '' : row[layout.platoon]).trim();
+
+                if (platoonText) {
+                    const match = platoonText.match(/(?:B|TĐ|TD)?\s*(\d+)/i);
+                    if (!match) {
+                        errors.push(`Dòng ${lineNumber}: không đọc được trung đội "${platoonText}".`);
+                        current = null;
+                        return;
+                    }
+
+                    const id = parseInt(match[1], 10);
+                    if (!groups.has(id)) {
+                        groups.set(id, { id, building: currentBuilding, rooms: [], quanSo: '' });
+                    }
+                    current = groups.get(id);
+                }
+
+                if (!current) return;
+
+                const buildingText = String(row[layout.building] === undefined || row[layout.building] === null ? '' : row[layout.building]).trim();
+                if (buildingText) {
+                    currentBuilding = normalizeBuildingName(buildingText);
+                    current.building = currentBuilding;
+                }
+
+                const roomText = String(row[layout.rooms] === undefined || row[layout.rooms] === null ? '' : row[layout.rooms]).trim();
+                if (roomText) {
+                    roomText.split(/[+,;/]+/).map(cleanRoomNumber).filter(Boolean).forEach(room => {
+                        if (!current.rooms.includes(room)) current.rooms.push(room);
+                    });
+                }
+
+                const quanSoText = String(row[layout.quanSo] === undefined || row[layout.quanSo] === null ? '' : row[layout.quanSo]).trim();
+                if (quanSoText) {
+                    const normalized = normalizeQuanSo(quanSoText);
+                    if (normalized === null) {
+                        errors.push(`Dòng ${lineNumber}: quân số "${quanSoText}" không hợp lệ.`);
+                    } else {
+                        current.quanSo = normalized;
+                    }
+                }
+            });
+
+            const entries = Array.from(groups.values())
+                .filter(group => group.building || group.rooms.length || group.quanSo)
+                .map(group => {
+                    const entry = { id: group.id };
+                    if (group.building) entry.building = group.building;
+                    if (group.rooms.length) entry.rooms = group.rooms.join(', ');
+                    if (group.quanSo) entry.quanSo = group.quanSo;
+                    return entry;
+                });
+
+            if (!entries.length) {
+                return { fatal: 'Không có dòng dữ liệu hợp lệ để nhập.' };
+            }
+
+            return {
+                entries,
+                errors,
+                map: { id: layout.platoon, building: layout.building, rooms: layout.rooms, quanSo: layout.quanSo },
+                headerRow: null,
+                dataRows: rows,
+                roomMode: true
+            };
+        }
+
         function buildSheetImport(rows, hasHeader) {
             const cleanRows = (rows || []).filter(row =>
                 Array.isArray(row) && row.some(cell => String(cell === undefined || cell === null ? '' : cell).trim() !== '')
@@ -4356,20 +4572,39 @@
             let headerRow = null;
             let dataRows = cleanRows;
             let map = null;
+            let headerIndex = 0;
 
             if (hasHeader) {
-                headerRow = cleanRows[0];
-                dataRows = cleanRows.slice(1);
-                map = buildSheetColumnMap(headerRow);
-                if (map.id === undefined) {
+                const scanLimit = Math.min(cleanRows.length, 15);
+                let best = { score: -1, index: 0, map: null };
+
+                for (let index = 0; index < scanLimit; index++) {
+                    const candidate = scoreSheetHeader(cleanRows[index]);
+                    if (candidate.map.id === undefined) continue;
+                    if (candidate.score > best.score) {
+                        best = { score: candidate.score, index, map: candidate.map };
+                    }
+                }
+
+                if (!best.map) {
                     return { fatal: 'Không tìm thấy cột "TĐ" trong dòng tiêu đề. Hãy đặt tên cột là TĐ/STT/Trung đội hoặc bỏ chọn "Là dòng tiêu đề".' };
                 }
+
+                headerIndex = best.index;
+                headerRow = cleanRows[headerIndex];
+                dataRows = cleanRows.slice(headerIndex + 1);
+                map = best.map;
             } else {
                 map = defaultSheetColumnMap(cleanRows);
             }
 
             if (!dataRows.length) {
                 return { fatal: 'Không có dòng dữ liệu sau dòng tiêu đề.' };
+            }
+
+            const roomLayout = hasHeader ? detectRoomSheetLayout(headerRow) : null;
+            if (roomLayout) {
+                return buildRoomSheetImport(dataRows, roomLayout, headerIndex + 2);
             }
 
             const entries = [];
@@ -4379,7 +4614,7 @@
             dataRows.forEach((row, index) => {
                 if (!row.some(cell => String(cell === undefined || cell === null ? '' : cell).trim() !== '')) return;
 
-                const lineNumber = index + (hasHeader ? 2 : 1);
+                const lineNumber = index + (hasHeader ? headerIndex + 2 : 1);
                 const rowErrors = [];
                 const idText = String(row[map.id] === undefined || row[map.id] === null ? '' : row[map.id]).trim();
                 const idMatch = idText.match(/^(?:TĐ|TD|B)?\s*(\d+)$/i);
@@ -4450,7 +4685,7 @@
         }
 
         function resetSheetPreview(message) {
-            sheetImportState = sheetImportState || { fileName: '', fileRows: [], pasteRows: [], result: null };
+            sheetImportState = sheetImportState || { fileName: '', sheets: [], activeSheetIndex: 0, fileRows: [], pasteRows: [], result: null };
             sheetImportState.result = null;
             elements.sheetPreviewTitle.textContent = 'Xem trước dữ liệu';
             elements.sheetPreviewTable.innerHTML = `<tbody><tr><td style="padding:14px; color:#94a3b8;">${escapeHtml(message || 'Chưa có dữ liệu. Hãy chọn file hoặc dán dữ liệu.')}</td></tr></tbody>`;
@@ -4507,12 +4742,53 @@
             elements.tabSheetPaste.classList.toggle('active', source === 'paste');
             elements.sheetFilePanel.style.display = source === 'file' ? 'block' : 'none';
             elements.sheetPastePanel.style.display = source === 'paste' ? 'block' : 'none';
+
+            if (elements.sheetSelectField) {
+                const hasSheets = source === 'file'
+                    && sheetImportState
+                    && sheetImportState.sheets
+                    && sheetImportState.sheets.length > 1;
+                elements.sheetSelectField.style.display = hasSheets ? 'block' : 'none';
+            }
+        }
+
+        function renderSheetSelect() {
+            if (!elements.sheetSelectField || !elements.sheetSelect) return;
+            const sheets = sheetImportState && sheetImportState.sheets ? sheetImportState.sheets : [];
+
+            if (sheets.length <= 1) {
+                elements.sheetSelectField.style.display = 'none';
+                elements.sheetSelect.innerHTML = '';
+                return;
+            }
+
+            elements.sheetSelectField.style.display = sheetSource === 'file' ? 'block' : 'none';
+            elements.sheetSelect.innerHTML = sheets.map((sheet, index) =>
+                `<option value="${index}">${escapeHtml(sheet.name)} (${sheet.rows.length} dòng)</option>`
+            ).join('');
+            elements.sheetSelect.value = String(sheetImportState.activeSheetIndex || 0);
+        }
+
+        function updateSheetFileLabel() {
+            if (!sheetImportState || !sheetImportState.fileName) {
+                elements.sheetFileName.textContent = 'Chưa chọn file. Hỗ trợ .xls (Excel 97-2003), .xlsx, .csv, .tsv.';
+                return;
+            }
+
+            const sheet = sheetImportState.sheets[sheetImportState.activeSheetIndex];
+            const sheetText = sheet ? ` · ${sheet.name} · ${sheet.rows.length} dòng` : '';
+            const countText = sheetImportState.sheets.length > 1 ? ` · ${sheetImportState.sheets.length} trang tính` : '';
+            elements.sheetFileName.textContent = `${sheetImportState.fileName}${sheetText}${countText}`;
         }
 
         function updateSheetPreview() {
-            const rows = sheetSource === 'paste'
-                ? (sheetImportState ? sheetImportState.pasteRows : [])
-                : (sheetImportState ? sheetImportState.fileRows : []);
+            let rows = [];
+            if (sheetSource === 'paste') {
+                rows = sheetImportState ? sheetImportState.pasteRows : [];
+            } else if (sheetImportState) {
+                const sheet = sheetImportState.sheets ? sheetImportState.sheets[sheetImportState.activeSheetIndex] : null;
+                rows = sheet ? sheet.rows : (sheetImportState.fileRows || []);
+            }
 
             if (!rows.length) {
                 resetSheetPreview();
@@ -4531,7 +4807,14 @@
         }
 
         function openSheetModal() {
-            sheetImportState = { fileName: '', fileRows: [], pasteRows: [], result: null };
+            sheetImportState = {
+                fileName: '',
+                sheets: [],
+                activeSheetIndex: 0,
+                fileRows: [],
+                pasteRows: [],
+                result: null
+            };
             sheetSource = 'file';
             elements.sheetFileInput.value = '';
             elements.sheetPasteInput.value = '';
@@ -4539,6 +4822,7 @@
             elements.sheetMode.value = 'merge';
             elements.sheetHasHeader.checked = true;
             clearSheetError();
+            renderSheetSelect();
             updateSheetSourceUI('file');
             resetSheetPreview();
             elements.sheetModal.classList.add('open');
@@ -4559,19 +4843,27 @@
             elements.btnApplySheet.disabled = true;
 
             try {
-                const rows = await parseSheetFile(file);
-                if (!rows.length) {
+                const parsed = await parseSheetFile(file);
+                const sheets = (parsed && parsed.sheets ? parsed.sheets : [])
+                    .filter(sheet => sheet.rows && sheet.rows.length);
+                if (!sheets.length) {
                     throw new Error('File không có dữ liệu.');
                 }
 
-                sheetImportState.fileRows = rows;
+                sheetImportState.sheets = sheets;
+                sheetImportState.activeSheetIndex = chooseDefaultSheetIndex(sheets);
+                sheetImportState.fileRows = sheets[sheetImportState.activeSheetIndex].rows;
                 sheetImportState.fileName = file.name;
-                elements.sheetFileName.textContent = `${file.name} · ${rows.length} dòng`;
+                renderSheetSelect();
+                updateSheetFileLabel();
                 updateSheetSourceUI('file');
                 updateSheetPreview();
             } catch (error) {
+                sheetImportState.sheets = [];
                 sheetImportState.fileRows = [];
+                sheetImportState.fileName = file.name;
                 elements.sheetFileName.textContent = file.name;
+                renderSheetSelect();
                 updateSheetSourceUI('file');
                 resetSheetPreview();
                 showSheetError([error.message || 'Không đọc được file.']);
@@ -4854,6 +5146,15 @@
             });
             elements.sheetHasHeader.addEventListener('change', updateSheetPreview);
             elements.sheetMode.addEventListener('change', updateSheetPreview);
+            elements.sheetSelect.addEventListener('change', () => {
+                if (!sheetImportState) return;
+                const index = parseInt(elements.sheetSelect.value, 10);
+                if (!Number.isInteger(index) || !sheetImportState.sheets[index]) return;
+                sheetImportState.activeSheetIndex = index;
+                sheetImportState.fileRows = sheetImportState.sheets[index].rows;
+                updateSheetFileLabel();
+                updateSheetPreview();
+            });
             elements.btnSheetSample.addEventListener('click', fillSheetSample);
             elements.btnApplySheet.addEventListener('click', applySheetImport);
 

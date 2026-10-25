@@ -17,14 +17,16 @@ Có thể dùng trực tiếp trên điện thoại, máy tính bảng hoặc m�
 - Cấu hình tên khóa, đơn vị, điểm gốc, ngày chấm và danh sách trung đội để dùng lại cho khóa sau.
 - Xuất/nhập file sao lưu `.json`, xuất `.csv`, in hoặc lưu PDF.
 - Nhập dữ liệu từ Excel/Google Sheets: `.xls` (Excel 97-2003), `.xlsx`, `.csv`, `.tsv` hoặc dán trực tiếp.
+- Tự nhận diện bảng điểm hoặc bảng nhà ở/biên chế để cập nhật danh sách trung đội.
 - Giao diện tiếng Việt, tối ưu cho điện thoại.
 
 ## Nhập Excel / Google Sheets
 
 Vào menu **⋮ → Nhập Excel / Google Sheets**.
 
-- File Excel được đọc **sheet đầu tiên**. Nếu workbook có nhiều sheet, hãy lưu riêng sheet cần nhập thành một file mới.
-- Nên có dòng tiêu đề với các cột: `TĐ`, `Tòa`, `Phòng`, `Quân số`, `Học tập`, `Rèn luyện`, `NVVS`, `Lễ tiết`, `Ghi chú`.
+- File Excel nhiều sheet: chọn **Trang tính** cần nhập trong hộp thoại.
+- Bảng điểm nên có dòng tiêu đề với các cột: `TĐ`, `Tòa`, `Phòng`, `Quân số`, `Học tập`, `Rèn luyện`, `NVVS`, `Lễ tiết`, `Ghi chú`.
+- Bảng nhà ở/biên chế có các cột `TT`, `trung đội`, `quân số`, `phòng ở`, `NHà` sẽ được tự động gộp theo trung đội (ví dụ `B1`, `B2`...).
 - Có thể chọn **Cập nhật** (giữ danh sách hiện tại, chỉ sửa các trung đội có trong file) hoặc **Thay thế toàn bộ**.
 - Luôn xem trước trước khi bấm **Nhập Dữ Liệu**.
 
