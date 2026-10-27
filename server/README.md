@@ -130,10 +130,19 @@ journalctl --user -u thi-dua-gdqp.service -f
 
 ## Mở ra Internet bằng Cloudflare Tunnel
 
+Cài `cloudflared` không cần root (Linux x86_64):
+
+```bash
+mkdir -p "$HOME/.local/bin"
+curl -fL -o "$HOME/.local/bin/cloudflared" \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+chmod +x "$HOME/.local/bin/cloudflared"
+```
+
 Chạy thử nhanh (URL tạm thời, đổi sau mỗi lần chạy):
 
 ```bash
-cloudflared tunnel --url http://127.0.0.1:8787
+"$HOME/.local/bin/cloudflared" tunnel --url http://127.0.0.1:8787
 ```
 
 Với tên miền ổn định, làm theo hướng dẫn Cloudflare để tạo named tunnel, trỏ DNS về tunnel và chạy:
