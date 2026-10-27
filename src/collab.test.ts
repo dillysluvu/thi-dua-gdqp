@@ -27,6 +27,7 @@ vi.mock('@supabase/supabase-js', () => ({
 }));
 
 vi.mock('./cloudSync', () => ({
+  cloudProviderOf: (config: { provider?: string } | null | undefined) => config?.provider === 'local' ? 'local' : 'supabase',
   pullCourse: cloud.pullCourse,
   pushCourse: cloud.pushCourse
 }));

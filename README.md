@@ -1,6 +1,6 @@
 # Bảng Thi Đua GDQP&AN
 
-Công cụ chấm điểm và theo dõi thi đua trung đội GDQP&AN, chạy hoàn toàn trên trình duyệt. Dữ liệu được lưu tự động trên thiết bị, có thể dùng nhiều khóa học, quản lý danh sách sinh viên/ban cán sự, sao lưu/khôi phục, khóa sổ, đồng bộ đám mây và cộng tác nhóm tùy chọn.
+Công cụ chấm điểm và theo dõi thi đua trung đội GDQP&AN, chạy trên trình duyệt. Dữ liệu được lưu tự động trên thiết bị, có thể dùng nhiều khóa học, quản lý danh sách sinh viên/ban cán sự, sao lưu/khôi phục, khóa sổ, đồng bộ đám mây và cộng tác nhóm tùy chọn. Có thể dùng Supabase hoặc dựng **máy chủ riêng Node + SQLite** để nhiều người cùng làm việc trên một bản dữ liệu, với dung lượng dữ liệu/backup giới hạn 10GB.
 
 ## Dùng online
 
@@ -56,9 +56,10 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 
 - Cài được lên màn hình chính, có service worker và hoạt động ngoại tuyến.
 - Có chỉ báo khi đang ngoại tuyến.
-- Đồng bộ đám mây tùy chọn qua Supabase: đẩy lên, kéo về, kiểm tra kết nối và tự động đẩy sau khi sửa.
-- Cộng tác nhóm tùy chọn: nhiều người cùng sửa bảng điểm và danh sách sinh viên; thay đổi được báo qua Supabase Realtime và vẫn tự đồng bộ mỗi 15 giây nếu Realtime không khả dụng.
-- Không cấu hình đám mây vẫn dùng bình thường; dữ liệu chính vẫn nằm trên thiết bị.
+- Đồng bộ đám mây tùy chọn qua Supabase hoặc **máy chủ riêng**: đẩy lên, kéo về, kiểm tra kết nối và tự động đẩy sau khi sửa.
+- Cộng tác nhóm tùy chọn: nhiều người cùng sửa bảng điểm và danh sách sinh viên; thay đổi được báo qua Supabase Realtime hoặc WebSocket của máy chủ riêng, và vẫn tự đồng bộ mỗi 15 giây nếu realtime không khả dụng.
+- Máy chủ riêng dùng Node + SQLite, nhẹ, không cần Docker; dữ liệu và backup được giới hạn theo `MAX_DATA_BYTES` (mặc định 10GB).
+- Không cấu hình đám mây/máy chủ vẫn dùng bình thường; dữ liệu chính vẫn nằm trên thiết bị.
 
 ## Dùng cho khóa sau
 
@@ -107,6 +108,28 @@ Vào menu **⋮ → Danh Sách Sinh Viên & Cán Sự → Nhập Excel/CSV**.
 - Trên máy tính: dùng biểu tượng cài đặt trên thanh địa chỉ của Chrome/Edge.
 - Sau lần mở đầu tiên, ứng dụng có thể tải lại khi không có mạng. Dữ liệu vẫn được lưu cục bộ.
 
+## Dùng chung một bản bằng máy chủ riêng (khuyến nghị)
+
+Repo có sẵn backend nhỏ **Node.js + SQLite + WebSocket** trong thư mục `server/`, không cần Docker hay Supabase. Máy chủ phục vụ luôn giao diện đã build và giới hạn tổng dữ liệu + backup theo `MAX_DATA_BYTES` (mặc định **10GB**).
+
+Chạy thử:
+
+```bash
+npm install
+npm run build
+ACCESS_CODE='doi-ma-truy-cap' \
+DATA_DIR="$HOME/.local/share/thi-dua-gdqp" \
+MAX_DATA_BYTES=10737418240 \
+npm run server
+```
+
+Mở `http://127.0.0.1:8787`, vào **⋮ → Kết Nối Chia Sẻ**, chọn **Máy chủ riêng**, nhập địa chỉ máy chủ, mã truy cập và **mã nhóm / bản dùng chung**. Mọi người dùng cùng ba thông tin này sẽ làm việc trên cùng một bản. Sau đó vào **⋮ → Cộng Tác Nhóm** và bật cộng tác.
+
+- Dữ liệu chính: `DATA_DIR/thi-dua.sqlite`; backup tự động mỗi 24 giờ, giữ 14 bản.
+- Server trả lỗi `507` khi vượt 10GB và có `GET /api/usage` để xem dung lượng.
+- Có thể chạy nền bằng systemd và mở ra Internet bằng Cloudflare Tunnel.
+- Hướng dẫn đầy đủ: [`server/README.md`](server/README.md).
+
 ## Đồng bộ đám mây với Supabase (tùy chọn)
 
 Ứng dụng là trang tĩnh trên GitHub Pages nên không có backend riêng. Có thể dùng Supabase làm nơi lưu bản sao:
@@ -128,19 +151,19 @@ create policy "course_sync_all" on public.course_sync
   for all using (true) with check (true);
 ```
 
-3. Vào **⋮ → Đồng Bộ Đám Mây**, nhập URL project, anon key, tên bảng `course_sync` và mã nhóm đồng bộ.
+3. Vào **⋮ → Kết Nối Chia Sẻ**, chọn **Supabase**, nhập URL project, anon key, tên bảng `course_sync` và mã nhóm đồng bộ.
 4. Bấm **Kiểm tra kết nối**, sau đó **Đẩy lên** hoặc **Kéo về**.
 
 Lưu ý: anon key dùng trong ứng dụng tĩnh là công khai. Policy mở `using (true)` chỉ phù hợp cho dữ liệu nội bộ hoặc thử nghiệm. Với dữ liệu nhạy cảm, cần backend trung gian hoặc policy giới hạn theo người dùng.
 
 ## Cộng tác nhóm (nhiều người cùng sửa)
 
-Cộng tác nhóm dùng lại đúng bảng `course_sync` và cấu hình Supabase ở trên, không cần tạo thêm bảng.
+Có thể cộng tác qua **Supabase** (dùng bảng `course_sync` ở trên) hoặc **máy chủ riêng** (xem [`server/README.md`](server/README.md)). Với máy chủ riêng, mã nhóm cũng là mã bản dùng chung nên mọi người thấy cùng một bản dữ liệu dù mã khóa cục bộ khác nhau.
 
-1. Mỗi người mở **⋮ → Đồng Bộ Đám Mây**, nhập cùng URL, anon key, tên bảng và **mã nhóm đồng bộ**.
+1. Mỗi người mở **⋮ → Kết Nối Chia Sẻ**, chọn Supabase hoặc Máy chủ riêng, rồi nhập cùng địa chỉ, mã truy cập và **mã nhóm / bản dùng chung**.
 2. Mở **⋮ → Cộng Tác Nhóm**, nhập tên hiển thị và bấm **Bật cộng tác**.
-3. Khi một người sửa điểm, quân số, cấu hình hoặc danh sách sinh viên, ứng dụng đẩy bản mới lên Supabase và báo cho các máy khác qua Realtime.
-4. Máy khác nhận thông báo sẽ kéo bản mới về và gộp thay đổi. Nếu Realtime bị chặn hoặc mất kết nối, ứng dụng vẫn tự kéo mỗi 15 giây.
+3. Khi một người sửa điểm, quân số, cấu hình hoặc danh sách sinh viên, ứng dụng đẩy bản mới lên Supabase/máy chủ và báo cho các máy khác qua Realtime/WebSocket.
+4. Máy khác nhận thông báo sẽ kéo bản mới về và gộp thay đổi. Nếu realtime bị chặn hoặc mất kết nối, ứng dụng vẫn tự kéo mỗi 15 giây.
 5. Có thể bấm **Kéo mới nhất** hoặc **Đẩy hiện tại** trong hộp thoại cộng tác để đồng bộ ngay.
 
 Cách gộp dữ liệu:
@@ -170,8 +193,11 @@ src/backup.ts              # Sao lưu tự động và danh sách bản lưu
 src/audit.ts               # Nhật ký thay đổi
 src/students.ts            # Danh sách sinh viên, ban cán sự, nhập/xuất CSV
 src/merge.ts               # Gộp dữ liệu nhiều người theo thời điểm sửa
-src/cloudSync.ts           # Kết nối Supabase tùy chọn
-src/collab.ts              # Cộng tác Realtime + REST, presence, polling
+src/cloudSync.ts           # Kết nối Supabase hoặc máy chủ riêng
+src/collab.ts              # Cộng tác Supabase Realtime / WebSocket, presence, polling
+server/index.mjs           # HTTP API, WebSocket, phục vụ dist/
+server/store.mjs           # SQLite, quota 10GB, backup
+server/store.test.mjs      # Test Node cho server
 src/styles.css             # Toàn bộ giao diện
 ```
 
@@ -181,9 +207,11 @@ Cài đặt và chạy thử:
 npm install
 npm run dev        # chạy dev server
 npm run typecheck  # kiểm tra TypeScript
-npm test           # chạy test tự động bằng Vitest (46 test)
+npm test           # Vitest (57 test) + test server SQLite (4 test)
+npm run test:server # chỉ chạy test server
 npm run build      # build ra thư mục dist/
 npm run preview    # xem thử bản build
+npm run server     # chạy backend Node + SQLite (sau khi build)
 ```
 
 ## Triển khai
@@ -201,7 +229,8 @@ Cấu hình workflow nằm tại `.github/workflows/deploy.yml`. Không commit t
 ## Quyền riêng tư
 
 - Dữ liệu chấm điểm lưu trong `localStorage` trên thiết bị đang dùng.
-- Nếu bật đồng bộ đám mây hoặc cộng tác nhóm, bản sao dữ liệu (bao gồm danh sách sinh viên nếu đã nhập) được gửi lên Supabase do người dùng cấu hình.
+- Nếu bật đồng bộ đám mây hoặc cộng tác nhóm, bản sao dữ liệu (bao gồm danh sách sinh viên nếu đã nhập) được gửi lên Supabase do người dùng cấu hình hoặc máy chủ riêng do người dùng dựng.
+- Máy chủ riêng lưu dữ liệu trong `DATA_DIR` trên máy chủ; nếu mở qua Cloudflare Tunnel, dữ liệu vẫn nằm trên máy chủ của bạn, không đi qua Supabase.
 - Repo chỉ chứa mã nguồn và dữ liệu mẫu, **không chứa** danh sách cá nhân, số điện thoại, CCCD hay file Excel gốc.
 - Xóa dữ liệu trình duyệt hoặc dùng chế độ ẩn danh có thể làm mất dữ liệu. Hãy xuất `.json` định kỳ.
 

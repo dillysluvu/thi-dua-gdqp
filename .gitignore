@@ -5,3 +5,5 @@ dist/
 *.xls
 *.xlsx
 *.csv
+server-data/
+server/.env

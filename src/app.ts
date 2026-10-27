@@ -59,6 +59,8 @@ import {
   pushCourse,
   pullCourse,
   scheduleCloudPush,
+  cancelScheduledCloudPush,
+  cloudProviderName,
   type CloudConfig,
   type CloudStatus
 } from './cloudSync';
@@ -286,6 +288,13 @@ const elements: Record<string, any> = {
 
     // Cloud sync
     cloudModal: document.getElementById('cloudModal'),
+    cloudProvider: document.getElementById('cloudProvider'),
+    cloudProviderTip: document.getElementById('cloudProviderTip'),
+    cloudUrlLabel: document.getElementById('cloudUrlLabel'),
+    cloudAnonKeyLabel: document.getElementById('cloudAnonKeyLabel'),
+    cloudTableField: document.getElementById('cloudTableField'),
+    cloudHelpSupabase: document.getElementById('cloudHelpSupabase'),
+    cloudHelpLocal: document.getElementById('cloudHelpLocal'),
     cloudUrl: document.getElementById('cloudUrl'),
     cloudAnonKey: document.getElementById('cloudAnonKey'),
     cloudTable: document.getElementById('cloudTable'),
@@ -719,7 +728,7 @@ function saveData() {
     maybeAutoSnapshot(payload);
     if (state.collabSession && state.collabSettings.enabled) {
         if (!state.applyingRemote) state.collabSession.schedulePush(payload);
-    } else if (state.cloudConfig && !state.applyingRemote) {
+    } else if (state.cloudConfig && !state.applyingRemote && !state.collabSettings.enabled) {
         scheduleCloudPush(payload, state.cloudConfig, status => {
             if (!status.ok && elements.cloudModal && elements.cloudModal.classList.contains('open')) {
                 setCloudStatus(status);
@@ -1949,6 +1958,7 @@ function setCloudStatus(status: CloudStatus | null) {
 
 function readCloudForm(): CloudConfig {
     return {
+        provider: elements.cloudProvider.value === 'local' ? 'local' : 'supabase',
         url: String(elements.cloudUrl.value || '').trim().replace(/\/+$/, ''),
         anonKey: String(elements.cloudAnonKey.value || '').trim(),
         table: String(elements.cloudTable.value || '').trim() || 'course_sync',
@@ -1957,17 +1967,45 @@ function readCloudForm(): CloudConfig {
     };
 }
 
+function cloudIsLocal(config: CloudConfig | null = state.cloudConfig): boolean {
+    return Boolean(config && config.provider === 'local');
+}
+
+function cloudLabel(config: CloudConfig | null = state.cloudConfig): string {
+    return cloudProviderName(config);
+}
+
+function renderCloudProviderFields(): void {
+    const local = elements.cloudProvider.value === 'local';
+    if (elements.cloudUrlLabel) elements.cloudUrlLabel.textContent = local ? 'Địa chỉ máy chủ' : 'Supabase URL';
+    if (elements.cloudAnonKeyLabel) elements.cloudAnonKeyLabel.textContent = local ? 'Mã truy cập' : 'Anon key';
+    if (elements.cloudUrl) elements.cloudUrl.placeholder = local ? 'https://thi-dua.example.com' : 'https://xxxx.supabase.co';
+    if (elements.cloudAnonKey) elements.cloudAnonKey.placeholder = local ? 'Mã truy cập do quản trị viên cấp' : 'eyJhbGci...';
+    if (elements.cloudTableField) elements.cloudTableField.hidden = local;
+    if (elements.cloudHelpSupabase) elements.cloudHelpSupabase.hidden = local;
+    if (elements.cloudHelpLocal) elements.cloudHelpLocal.hidden = !local;
+    if (elements.cloudProviderTip) {
+        elements.cloudProviderTip.innerHTML = local
+            ? '<strong>Máy chủ riêng:</strong> nhập địa chỉ máy chủ và mã truy cập do quản trị viên cấp. Dữ liệu vẫn được lưu cục bộ; máy chủ là bản sao dùng chung.'
+            : '<strong>Supabase:</strong> nhập URL project, anon key và bảng <code>course_sync</code>. Dữ liệu vẫn được lưu cục bộ; đám mây chỉ là bản sao thêm.';
+    }
+}
+
 function openCloudModal() {
     state.cloudConfig = loadCloudConfig();
     const config = state.cloudConfig;
+    if (elements.cloudProvider) {
+        elements.cloudProvider.value = config.provider === 'local' ? 'local' : 'supabase';
+    }
+    renderCloudProviderFields();
     elements.cloudUrl.value = config.url || '';
     elements.cloudAnonKey.value = config.anonKey || '';
     elements.cloudTable.value = config.table || 'course_sync';
     elements.cloudSyncId.value = config.syncId || 'gdqpan';
     elements.cloudAutoPush.checked = Boolean(config.autoPush);
     setCloudStatus(isCloudConfigured(config)
-        ? { ok: true, message: 'Đã có cấu hình. Có thể kiểm tra kết nối hoặc đồng bộ.' }
-        : { ok: false, message: 'Chưa cấu hình Supabase. Điền URL, anon key và tạo bảng theo hướng dẫn.' });
+        ? { ok: true, message: `Đã có cấu hình ${cloudLabel(config)}. Có thể kiểm tra kết nối hoặc đồng bộ.` }
+        : { ok: false, message: `Chưa cấu hình ${cloudLabel(config)}. Điền địa chỉ, mã truy cập và mã nhóm dữ liệu.` });
     elements.cloudModal.classList.add('open');
 }
 
@@ -1982,10 +2020,10 @@ function saveCloudForm() {
         return;
     }
     state.cloudConfig = config;
-    setCloudStatus({ ok: true, message: 'Đã lưu cấu hình đồng bộ trên thiết bị.' });
+    setCloudStatus({ ok: true, message: `Đã lưu cấu hình ${cloudLabel(config)} trên thiết bị.` });
     if (state.collabSettings.enabled) startCollab();
     renderCollabUI();
-    showToast('Đã lưu cấu hình đồng bộ đám mây.');
+    showToast('Đã lưu cấu hình kết nối.');
 }
 
 async function testCloud() {
@@ -2005,7 +2043,7 @@ async function pushCloudNow() {
     state.cloudConfig = config;
 
     if (!isCloudConfigured(config)) {
-        setCloudStatus({ ok: false, message: 'Chưa điền đủ URL, anon key, bảng và mã đồng bộ.' });
+        setCloudStatus({ ok: false, message: 'Chưa điền đủ địa chỉ, mã truy cập và mã nhóm dữ liệu.' });
         return;
     }
 
@@ -2014,7 +2052,7 @@ async function pushCloudNow() {
         return;
     }
 
-    setCloudStatus({ ok: true, message: 'Đang đẩy dữ liệu lên Supabase...' });
+    setCloudStatus({ ok: true, message: `Đang đẩy dữ liệu lên ${cloudLabel(config)}...` });
     const status = await pushCourse(buildPayload(), config);
     setCloudStatus(status);
     showToast(status.message);
@@ -2022,7 +2060,7 @@ async function pushCloudNow() {
 
 async function pullCloudNow() {
     if (state.locked) {
-        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi kéo dữ liệu đám mây.');
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi kéo dữ liệu chia sẻ.');
         return;
     }
 
@@ -2031,17 +2069,18 @@ async function pullCloudNow() {
     state.cloudConfig = config;
 
     if (!isCloudConfigured(config)) {
-        setCloudStatus({ ok: false, message: 'Chưa điền đủ URL, anon key, bảng và mã đồng bộ.' });
+        setCloudStatus({ ok: false, message: 'Chưa điền đủ địa chỉ, mã truy cập và mã nhóm dữ liệu.' });
         return;
     }
 
+    const label = cloudLabel(config);
     const ok = await customConfirm(
-        'Kéo Dữ Liệu Từ Đám Mây',
-        'Tải bản mới nhất của khóa hiện tại từ Supabase và thay thế dữ liệu trên thiết bị?\nDữ liệu hiện tại sẽ được sao lưu trước khi thay thế.'
+        `Kéo Dữ Liệu Từ ${label}`,
+        `Tải bản mới nhất của khóa hiện tại từ ${label} và thay thế dữ liệu trên thiết bị?\nDữ liệu hiện tại sẽ được sao lưu trước khi thay thế.`
     );
     if (!ok) return;
 
-    setCloudStatus({ ok: true, message: 'Đang kéo dữ liệu từ Supabase...' });
+    setCloudStatus({ ok: true, message: `Đang kéo dữ liệu từ ${label}...` });
     const result = await pullCourse(state.courseId, config);
     if (!result.ok || !result.record) {
         setCloudStatus(result);
@@ -2049,7 +2088,7 @@ async function pullCloudNow() {
         return;
     }
 
-    captureSnapshot('Trước khi kéo dữ liệu đám mây', true);
+    captureSnapshot('Trước khi kéo dữ liệu chia sẻ', true);
     const record = result.record;
     const now = new Date().toISOString();
     record.meta.id = state.courseId;
@@ -2062,13 +2101,13 @@ async function pullCloudNow() {
     record.students = normalizeStudents(record.students).map(student => ({ ...student, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
 
     applyCourseRecord(record);
-    logAudit('Đồng bộ đám mây', 'Kéo dữ liệu khóa từ Supabase');
+    logAudit('Đồng bộ chia sẻ', `Kéo dữ liệu khóa từ ${label}`);
     applyMetaToUI();
     renderBuildingPills();
     updateCalculations();
     render();
-    setCloudStatus({ ok: true, message: 'Đã kéo dữ liệu từ Supabase.' });
-    showToast('Đã đồng bộ dữ liệu từ đám mây.');
+    setCloudStatus({ ok: true, message: `Đã kéo dữ liệu từ ${label}.` });
+    showToast(`Đã đồng bộ dữ liệu từ ${label}.`);
 }
 
 // ============================================================
@@ -2107,7 +2146,7 @@ async function applyRemoteRecord(record: CourseRecord, info: { initial: boolean;
     let localNewer = false;
     let remoteNewer = true;
 
-    // Lần đầu bật cộng tác: nếu bản trên Supabase vẫn trống mà máy này đã có
+    // Lần đầu bật cộng tác: nếu bản trên máy chủ/Supabase vẫn trống mà máy này đã có
     // điểm/sinh viên thì giữ dữ liệu cục bộ và đẩy lên làm bản gốc.
     if (info.initial && !localPristine && isRecordPristine(record)) {
         if (state.collabSession) state.collabSession.schedulePush(localRecord);
@@ -2157,11 +2196,13 @@ function renderCollabUI(): void {
     const users: CollabUser[] = status && Array.isArray(status.users) ? status.users : [];
     const stateName = status ? status.state : 'off';
 
+    const providerShort = cloudIsLocal(state.cloudConfig) ? 'máy chủ' : 'Supabase';
+
     let title = 'Chưa bật cộng tác';
     let text = 'Bật cộng tác để nhiều người cùng chỉnh sửa bảng điểm và danh sách sinh viên.';
     if (!configured) {
-        title = 'Chưa cấu hình Supabase';
-        text = 'Mở Cấu hình Supabase để nhập URL, anon key và bảng đồng bộ trước khi bật cộng tác.';
+        title = 'Chưa cấu hình kết nối';
+        text = 'Mở Cấu hình kết nối để nhập địa chỉ, mã truy cập và mã nhóm dữ liệu trước khi bật cộng tác.';
     } else if (!state.collabSettings.enabled) {
         title = 'Cộng tác đang tắt';
         text = 'Dữ liệu chỉ lưu trên thiết bị này. Bật cộng tác để làm việc cùng người khác.';
@@ -2178,7 +2219,7 @@ function renderCollabUI(): void {
         text = status.message || text;
     } else {
         title = 'Đang bật cộng tác...';
-        text = 'Đang chuẩn bị kết nối tới Supabase.';
+        text = `Đang chuẩn bị kết nối tới ${providerShort}.`;
     }
 
     elements.collabStatusTitle.textContent = title;
@@ -2190,17 +2231,19 @@ function renderCollabUI(): void {
         ? `Đồng bộ lần cuối: ${formatCollabTime(status.lastSyncAt)}`
         : 'Chưa có lần đồng bộ nào trong phiên này.';
 
-    elements.btnCollabToggle.textContent = !configured ? 'Cấu hình Supabase' : active ? 'Tắt cộng tác' : 'Bật cộng tác';
+    elements.btnCollabToggle.textContent = !configured ? 'Cấu hình kết nối' : active ? 'Tắt cộng tác' : 'Bật cộng tác';
     elements.btnCollabToggle.classList.toggle('primary', !active);
     elements.btnCollabToggle.classList.toggle('secondary', active);
 
     if (configured) {
         let host = state.cloudConfig.url;
         try { host = new URL(state.cloudConfig.url).host; } catch { /* giữ nguyên URL */ }
-        elements.collabConfigLine.textContent = `Supabase: ${host} · bảng ${state.cloudConfig.table} · nhóm ${state.cloudConfig.syncId}`;
+        elements.collabConfigLine.textContent = cloudIsLocal(state.cloudConfig)
+            ? `Máy chủ: ${host} · nhóm ${state.cloudConfig.syncId}`
+            : `Supabase: ${host} · bảng ${state.cloudConfig.table} · nhóm ${state.cloudConfig.syncId}`;
         elements.collabConfigLine.className = 'collab-config-line ok';
     } else {
-        elements.collabConfigLine.textContent = 'Chưa có cấu hình Supabase. Bấm “Cấu hình Supabase” để thiết lập.';
+        elements.collabConfigLine.textContent = 'Chưa có cấu hình kết nối. Bấm “Cấu hình kết nối” để thiết lập.';
         elements.collabConfigLine.className = 'collab-config-line missing';
     }
 
@@ -2214,7 +2257,7 @@ function renderCollabUI(): void {
         elements.collabUsers.innerHTML = '<div class="collab-empty">Bật cộng tác để xem những người đang online.</div>';
     } else if (!users.length) {
         elements.collabUsers.innerHTML = status && !status.realtime
-            ? '<div class="collab-empty">Realtime chưa kết nối nên chưa xem được danh sách online. Dữ liệu vẫn đồng bộ qua Supabase mỗi 15 giây.</div>'
+            ? `<div class="collab-empty">Realtime chưa kết nối nên chưa xem được danh sách online. Dữ liệu vẫn đồng bộ qua ${providerShort} mỗi 15 giây.</div>`
             : '<div class="collab-empty">Chỉ bạn đang online. Chờ người khác mở ứng dụng...</div>';
     } else {
         elements.collabUsers.innerHTML = users.map(user => `
@@ -2271,10 +2314,13 @@ function startCollab(): void {
         oldSession.stop();
     }
 
+    // Hủy lần đẩy cloud đang chờ (nếu có) để không ghi đè bản realtime bằng dữ liệu cũ.
+    cancelScheduledCloudPush();
+
     const displayName = state.collabSettings.displayName || state.graderName || 'Giảng viên';
     state.collabStatus = {
         state: 'connecting',
-        message: 'Đang kết nối tới Supabase...',
+        message: `Đang kết nối tới ${cloudIsLocal(state.cloudConfig) ? 'máy chủ' : 'Supabase'}...`,
         users: [],
         lastSyncAt: '',
         realtime: false
@@ -2322,10 +2368,12 @@ function toggleCollab(): void {
     if (!collabIsConfigured()) {
         closeCollabModal();
         openCloudModal();
-        showToast('Hãy cấu hình Supabase trước khi bật cộng tác.');
+        showToast('Hãy cấu hình kết nối trước khi bật cộng tác.');
         return;
     }
 
+    const displayName = String(elements.collabDisplayName.value || '').trim();
+    if (displayName) state.collabSettings.displayName = displayName;
     state.collabSettings.enabled = true;
     saveCollabSettings(state.collabSettings);
     startCollab();
@@ -4631,6 +4679,12 @@ function setupEventListeners() {
     });
 
     // Cloud sync
+    if (elements.cloudProvider) {
+        elements.cloudProvider.addEventListener('change', () => {
+            renderCloudProviderFields();
+            setCloudStatus(null);
+        });
+    }
     elements.btnOpenCloud.addEventListener('click', openCloudModal);
     elements.btnCloseCloud.addEventListener('click', closeCloudModal);
     elements.btnCloseCloudFooter.addEventListener('click', closeCloudModal);

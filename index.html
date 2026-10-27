@@ -73,7 +73,7 @@
             </button>
             <button class="dropdown-item" id="btnOpenCloud">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 6 20h13a5 5 0 0 0 .35-9.96zM19 18H6a4 4 0 0 1-.2-7.99l.8-.04.37-.7A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 5.4 4.5l.2 1.1 1.1.2A3 3 0 0 1 19 18z"/><path d="M11 10h2v4h3l-4 4-4-4h3z"/></svg>
-                Đồng Bộ Đám Mây
+                Kết Nối Chia Sẻ
             </button>
             <button class="dropdown-item" id="btnOpenSettings">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
@@ -674,31 +674,38 @@
         <div class="modal-box">
             <div class="modal-header">
                 <div>
-                    <div class="modal-title" id="cloudTitle">Đồng Bộ Đám Mây</div>
-                    <div class="modal-sub">Tùy chọn kết nối Supabase để dùng dữ liệu trên nhiều thiết bị. Không bắt buộc để chấm điểm.</div>
+                    <div class="modal-title" id="cloudTitle">Kết Nối Chia Sẻ</div>
+                    <div class="modal-sub">Dùng Supabase hoặc máy chủ riêng để nhiều người cùng làm việc trên một bản dữ liệu. Không bắt buộc để chấm điểm.</div>
                 </div>
                 <button type="button" class="modal-close" id="btnCloseCloud" aria-label="Đóng">✕</button>
             </div>
             <div class="modal-body">
-                <div class="settings-tip" style="margin-bottom:12px;">
-                    <strong>Cần chuẩn bị:</strong> một project Supabase, bảng <code>course_sync</code> và anon key. Dữ liệu vẫn được lưu cục bộ; đám mây chỉ là bản sao thêm.
+                <div class="settings-tip" id="cloudProviderTip" style="margin-bottom:12px;">
+                    <strong>Máy chủ riêng:</strong> nhập địa chỉ máy chủ và mã truy cập do quản trị viên cấp. Dữ liệu vẫn được lưu cục bộ; máy chủ là bản sao dùng chung.
                 </div>
 
                 <div class="form-grid">
                     <div class="field">
-                        <label for="cloudUrl">Supabase URL</label>
-                        <input type="url" id="cloudUrl" placeholder="https://xxxx.supabase.co" autocomplete="off">
+                        <label for="cloudProvider">Loại kết nối</label>
+                        <select id="cloudProvider">
+                            <option value="local">Máy chủ riêng (khuyến nghị)</option>
+                            <option value="supabase">Supabase (đám mây)</option>
+                        </select>
                     </div>
                     <div class="field">
-                        <label for="cloudAnonKey">Anon key</label>
-                        <input type="text" id="cloudAnonKey" placeholder="eyJhbGci..." autocomplete="off">
+                        <label for="cloudUrl" id="cloudUrlLabel">Địa chỉ máy chủ</label>
+                        <input type="url" id="cloudUrl" placeholder="https://thi-dua.example.com" autocomplete="off">
                     </div>
                     <div class="field">
+                        <label for="cloudAnonKey" id="cloudAnonKeyLabel">Mã truy cập</label>
+                        <input type="text" id="cloudAnonKey" placeholder="Mã truy cập do quản trị viên cấp" autocomplete="off">
+                    </div>
+                    <div class="field" id="cloudTableField">
                         <label for="cloudTable">Tên bảng</label>
                         <input type="text" id="cloudTable" value="course_sync" placeholder="course_sync">
                     </div>
                     <div class="field">
-                        <label for="cloudSyncId">Mã nhóm đồng bộ</label>
+                        <label for="cloudSyncId">Mã nhóm / bản dùng chung</label>
                         <input type="text" id="cloudSyncId" value="gdqpan" placeholder="gdqpan">
                     </div>
                 </div>
@@ -717,7 +724,7 @@
 
                 <div class="cloud-status" id="cloudStatus"></div>
 
-                <details class="cloud-help">
+                <details class="cloud-help" id="cloudHelpSupabase">
                     <summary>SQL tạo bảng Supabase</summary>
                     <pre>create table public.course_sync (
   id text primary key,
@@ -730,6 +737,15 @@ create policy "course_sync_all" on public.course_sync
   for all using (true) with check (true);</pre>
                     <div class="hint">Chỉ dùng anon key trong ứng dụng tĩnh. Với dữ liệu thật, nên giới hạn policy theo người dùng hoặc dùng backend trung gian.</div>
                 </details>
+
+                <div class="cloud-help" id="cloudHelpLocal" hidden>
+                    <div class="hint">
+                        <strong>Máy chủ riêng:</strong> mọi người dùng cùng địa chỉ máy chủ, mã truy cập và mã nhóm.
+                        Với máy chủ riêng, mã nhóm cũng là mã bản dùng chung: ai nhập cùng mã nhóm sẽ thấy cùng một bản dữ liệu.
+                        Quản trị viên chạy server Node + SQLite trên máy chủ, dữ liệu và backup được giới hạn 10GB.
+                        Nếu dùng Cloudflare Tunnel, địa chỉ có dạng <code>https://ten-mien-cua-ban</code>.
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <span class="spacer"></span>
@@ -744,7 +760,7 @@ create policy "course_sync_all" on public.course_sync
             <div class="modal-header">
                 <div>
                     <div class="modal-title" id="collabTitle">Cộng Tác Nhóm</div>
-                    <div class="modal-sub">Nhiều người cùng chấm và chỉnh sửa một bảng. Cần cấu hình Supabase trước khi bật.</div>
+                    <div class="modal-sub">Nhiều người cùng chấm và chỉnh sửa một bảng. Cần cấu hình kết nối trước khi bật.</div>
                 </div>
                 <button type="button" class="modal-close" id="btnCloseCollab" aria-label="Đóng">✕</button>
             </div>
@@ -768,9 +784,9 @@ create policy "course_sync_all" on public.course_sync
                         <div class="hint">Tên này chỉ dùng để hiện cho người khác biết ai đang online.</div>
                     </div>
                     <div class="field">
-                        <label for="collabSyncId">Mã nhóm đồng bộ</label>
+                        <label for="collabSyncId">Mã nhóm / bản dùng chung</label>
                         <input type="text" id="collabSyncId" readonly>
-                        <div class="hint">Mọi người phải dùng cùng Supabase URL, bảng và mã nhóm.</div>
+                        <div class="hint">Mọi người phải dùng cùng địa chỉ máy chủ và mã nhóm. Với máy chủ riêng, mã nhóm cũng là mã bản dùng chung.</div>
                     </div>
                 </div>
 
@@ -786,11 +802,11 @@ create policy "course_sync_all" on public.course_sync
                     <button type="button" class="btn-modal secondary" id="btnCollabSaveName">Lưu tên</button>
                     <button type="button" class="btn-modal ghost" id="btnCollabPull">Kéo mới nhất</button>
                     <button type="button" class="btn-modal primary" id="btnCollabPush">Đẩy hiện tại</button>
-                    <button type="button" class="btn-modal ghost" id="btnCollabConfig">Mở cấu hình Supabase</button>
+                    <button type="button" class="btn-modal ghost" id="btnCollabConfig">Mở cấu hình kết nối</button>
                 </div>
 
                 <div class="settings-tip" style="margin-top:12px;">
-                    <strong>Cách hoạt động:</strong> mỗi lần có người sửa, ứng dụng đẩy bản mới lên Supabase và báo cho các máy khác tải về. Thay đổi ở các trung đội/sinh viên khác nhau được giữ lại; nếu hai người sửa cùng một dòng, bản lưu sau sẽ thắng. Nếu mất realtime, ứng dụng vẫn tự đồng bộ mỗi 15 giây.
+                    <strong>Cách hoạt động:</strong> mỗi lần có người sửa, ứng dụng đẩy bản mới lên máy chủ/Supabase và báo cho các máy khác tải về. Thay đổi ở các trung đội/sinh viên khác nhau được giữ lại; nếu hai người sửa cùng một dòng, bản lưu sau sẽ thắng. Nếu mất realtime, ứng dụng vẫn tự đồng bộ mỗi 15 giây.
                 </div>
             </div>
             <div class="modal-footer">
@@ -951,7 +967,7 @@ create policy "course_sync_all" on public.course_sync
                     <li><strong>Dữ liệu tự lưu:</strong> mọi thay đổi được lưu vào trình duyệt trên thiết bị này, theo từng khóa học. Hãy xuất file <strong>.json</strong> định kỳ để sao lưu hoặc chuyển sang máy khác.</li>
                     <li><strong>Nhập Excel / Google Sheets:</strong> menu ⋮ → <strong>Nhập Excel / Google Sheets</strong>. Hỗ trợ file <strong>.xls, .xlsx, .csv, .tsv</strong> hoặc dán trực tiếp từ Excel/Sheets; có xem trước trước khi áp dụng.</li>
                     <li><strong>Danh sách sinh viên &amp; cán sự:</strong> menu ⋮ → <strong>Danh Sách Sinh Viên &amp; Cán Sự</strong>. Có thể chọn nhiều file Excel/CSV, nhập mẫu <strong>biên chế nhiều tiểu đội</strong> và giữ số tiểu đội gốc (1, 2, 3, ... 168), thêm/sửa/xóa, <strong>Lưu &amp; Thêm tiếp</strong>, chọn nhiều sinh viên để xóa hoặc gán chức vụ hàng loạt, hoàn tác xóa, nhóm theo phòng hoặc trung đội, lọc theo tòa/phòng/trung đội/tiểu đội. Bấm <strong>SV: n</strong> trên thẻ để mở đúng trung đội.</li>
-                    <li><strong>Cộng tác nhóm:</strong> menu ⋮ → <strong>Cộng Tác Nhóm</strong>. Cần cấu hình Supabase trước. Nhiều người có thể cùng sửa; thay đổi được báo qua Realtime và vẫn tự đồng bộ mỗi 15 giây nếu Realtime không khả dụng.</li>
+                    <li><strong>Cộng tác nhóm:</strong> menu ⋮ → <strong>Kết Nối Chia Sẻ</strong> để chọn máy chủ riêng hoặc Supabase, sau đó mở <strong>Cộng Tác Nhóm</strong> và bật cộng tác. Nhiều người có thể cùng sửa; thay đổi được báo qua Realtime/WebSocket và vẫn tự đồng bộ mỗi 15 giây nếu realtime không khả dụng.</li>
                     <li><strong>Khôi phục / chuyển máy:</strong> mở menu ⋮ → <strong>Nhập File Sao Lưu (.json)</strong>. Dữ liệu cũ sẽ được thay thế sau khi xác nhận.</li>
                     <li><strong>In báo cáo:</strong> chọn ngày trên màn hình chính, sau đó menu ⋮ → <strong>In / Xuất PDF Báo Cáo</strong>. Trong hộp thoại in, chọn “Save as PDF” nếu cần gửi file.</li>
                 </ol>

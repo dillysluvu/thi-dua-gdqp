@@ -1,5 +1,5 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
-import { pullCourse, pushCourse, type CloudConfig, type CloudStatus } from './cloudSync';
+import { cloudProviderOf, pullCourse, pushCourse, type CloudConfig, type CloudStatus } from './cloudSync';
 import { readJson, writeJson, type CourseRecord } from './courseStore';
 
 export const COLLAB_SETTINGS_KEY = 'THI_DUA_GDQPAN_V3:collab';
@@ -103,6 +103,9 @@ export class CollabSession {
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
   private remotePullTimer: ReturnType<typeof setTimeout> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private localSocket: WebSocket | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
   private stopped = false;
   private state: CollabStatus['state'] = 'off';
   private message = 'Chưa bật cộng tác.';
@@ -131,9 +134,28 @@ export class CollabSession {
     return this.connected;
   }
 
+  private isLocal(): boolean {
+    return cloudProviderOf(this.options.config) === 'local';
+  }
+
+  private providerLabel(): string {
+    return this.isLocal() ? 'máy chủ' : 'Supabase';
+  }
+
+  private startPolling(): void {
+    if (this.pollTimer) return;
+    this.pollTimer = setInterval(() => {
+      if (!this.stopped && this.ready && document.visibilityState !== 'hidden') {
+        void this.pullNow(false);
+      }
+    }, 15000);
+  }
+
   setDisplayName(name: string): void {
     this.displayName = String(name || '').trim() || 'Giảng viên';
-    if (this.channel && this.connected) {
+    if (this.isLocal()) {
+      this.sendLocal({ type: 'presence', name: this.displayName });
+    } else if (this.channel && this.connected) {
       void this.channel.track({
         client_id: this.clientId,
         name: this.displayName,
@@ -146,6 +168,16 @@ export class CollabSession {
 
   async start(): Promise<void> {
     this.stopped = false;
+    this.ready = false;
+    this.initializing = false;
+    this.connected = false;
+    this.users = [];
+
+    if (this.isLocal()) {
+      this.startLocal();
+      return;
+    }
+
     this.emitStatus('connecting', 'Đang kết nối cộng tác...');
 
     try {
@@ -194,20 +226,152 @@ export class CollabSession {
       }
     });
 
-    this.pollTimer = setInterval(() => {
-      if (!this.stopped && this.ready && document.visibilityState !== 'hidden') {
-        void this.pullNow(false);
-      }
-    }, 15000);
+    this.startPolling();
 
     // REST vẫn hoạt động dù WebSocket/Realtime bị chặn.
     void this.initializeRestSync();
   }
 
+  private startLocal(): void {
+    this.emitStatus('connecting', 'Đang kết nối tới máy chủ...');
+    this.startPolling();
+    // REST hoạt động độc lập với WebSocket; nếu WebSocket lỗi vẫn có polling 15 giây.
+    void this.initializeRestSync();
+    this.connectLocalSocket();
+  }
+
+  private localSocketUrl(): string {
+    const base = new URL(this.options.config.url);
+    const url = new URL('/ws', base);
+    url.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+    url.searchParams.set('syncId', this.options.config.syncId);
+    // Mã nhóm cũng là mã bản dùng chung trên máy chủ riêng.
+    url.searchParams.set('courseId', this.options.config.syncId);
+    url.searchParams.set('token', this.options.config.anonKey);
+    url.searchParams.set('clientId', this.clientId);
+    url.searchParams.set('name', this.displayName);
+    return url.toString();
+  }
+
+  private connectLocalSocket(): void {
+    if (this.stopped) return;
+    this.clearLocalSocket();
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(this.localSocketUrl());
+    } catch (error) {
+      this.emitStatus('connecting', `Realtime chưa kết nối: ${(error as Error).message}. Vẫn đồng bộ qua máy chủ mỗi 15 giây.`);
+      this.scheduleLocalReconnect();
+      return;
+    }
+    this.localSocket = socket;
+
+    socket.addEventListener('open', () => {
+      if (this.stopped || this.localSocket !== socket) return;
+      this.connected = true;
+      this.reconnectAttempts = 0;
+      this.sendLocal({ type: 'presence', name: this.displayName });
+      this.emitStatus('connected', this.users.length > 1
+        ? `Đã kết nối · ${this.users.length} người đang cộng tác`
+        : 'Đã kết nối cộng tác. Chờ người khác tham gia...');
+      void this.initializeRestSync();
+    });
+
+    socket.addEventListener('message', event => {
+      if (this.stopped || this.localSocket !== socket) return;
+      let message: any;
+      try { message = JSON.parse(String(event.data)); } catch { return; }
+      if (!message || typeof message !== 'object') return;
+      if (message.type === 'presence' && Array.isArray(message.users)) {
+        this.setLocalUsers(message.users);
+        return;
+      }
+      if (message.type === 'changed') {
+        if (message.clientId && message.clientId === this.clientId) return;
+        const expectedCourseId = this.isLocal() ? this.options.config.syncId : this.options.courseId;
+        if (message.courseId && message.courseId !== expectedCourseId) return;
+        if (this.remotePullTimer) clearTimeout(this.remotePullTimer);
+        this.remotePullTimer = setTimeout(() => {
+          this.remotePullTimer = null;
+          void this.pullNow(false);
+        }, 250);
+        return;
+      }
+      if (message.type === 'error') {
+        this.emitStatus('error', String(message.message || 'Máy chủ báo lỗi.'));
+      }
+    });
+
+    socket.addEventListener('close', () => {
+      if (this.stopped || this.localSocket !== socket) return;
+      this.localSocket = null;
+      this.connected = false;
+      this.users = [];
+      this.emitStatus('connecting', 'Mất kết nối realtime; vẫn đồng bộ qua máy chủ mỗi 15 giây.');
+      this.scheduleLocalReconnect();
+    });
+
+    socket.addEventListener('error', () => {
+      if (this.stopped || this.localSocket !== socket) return;
+      this.connected = false;
+      this.emitStatus('connecting', 'Realtime chưa kết nối; vẫn đồng bộ qua máy chủ mỗi 15 giây.');
+    });
+  }
+
+  private scheduleLocalReconnect(): void {
+    if (this.stopped || this.reconnectTimer) return;
+    const delay = Math.min(15000, 1500 * 2 ** Math.min(this.reconnectAttempts, 4));
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.stopped) this.connectLocalSocket();
+    }, delay);
+  }
+
+  private sendLocal(data: unknown): void {
+    if (!this.localSocket || this.localSocket.readyState !== WebSocket.OPEN) return;
+    try { this.localSocket.send(JSON.stringify(data)); } catch { /* ignore */ }
+  }
+
+  private setLocalUsers(users: any[]): void {
+    const mapped: CollabUser[] = [];
+    const seen = new Set<string>();
+    for (const item of users) {
+      const id = String(item?.id || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      mapped.push({
+        id,
+        name: String(item?.name || 'Giảng viên'),
+        color: String(item?.color || colorFor(id)),
+        joinedAt: String(item?.joinedAt || ''),
+        isSelf: id === this.clientId
+      });
+    }
+    mapped.sort((a, b) => {
+      if (a.isSelf !== b.isSelf) return a.isSelf ? -1 : 1;
+      return a.name.localeCompare(b.name, 'vi');
+    });
+    this.users = mapped;
+    this.emitStatus(this.state, this.connected
+      ? (mapped.length > 1 ? `Đã kết nối · ${mapped.length} người đang cộng tác` : 'Đã kết nối cộng tác. Chờ người khác tham gia...')
+      : this.message);
+  }
+
+  private clearLocalSocket(): void {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    if (this.localSocket) {
+      const socket = this.localSocket;
+      this.localSocket = null;
+      try { socket.close(); } catch { /* ignore */ }
+    }
+  }
+
   private async initializeRestSync(): Promise<void> {
     if (this.ready || this.initializing || this.stopped) return;
     this.initializing = true;
-    this.emitStatus('connecting', 'Đang tải dữ liệu mới nhất từ Supabase...');
+    this.emitStatus('connecting', `Đang tải dữ liệu mới nhất từ ${this.providerLabel()}...`);
     const result = await this.pullNow(true);
     if (this.stopped) return;
     this.ready = true;
@@ -220,7 +384,7 @@ export class CollabSession {
         ? result.message
         : this.connected
           ? (this.users.length > 1 ? `Đã kết nối · ${this.users.length} người đang cộng tác` : 'Đã kết nối cộng tác. Chờ người khác tham gia...')
-          : 'Đã kết nối Supabase. Realtime chưa kết nối, ứng dụng vẫn tự đồng bộ mỗi 15 giây.'
+          : `Đã kết nối ${this.providerLabel()}. Realtime chưa kết nối, ứng dụng vẫn tự đồng bộ mỗi 15 giây.`
     );
 
     if (this.pendingRecord) {
@@ -229,7 +393,7 @@ export class CollabSession {
       // bản ghi cũ được chụp trước khi kéo dữ liệu.
       await this.pushNow(this.options.getLocalRecord());
     } else if (noRemote) {
-      // Chưa có bản trên Supabase: tạo bản gốc từ dữ liệu đang mở.
+      // Chưa có bản trên máy chủ/Supabase: tạo bản gốc từ dữ liệu đang mở.
       await this.pushNow(this.options.getLocalRecord());
     }
   }
@@ -266,8 +430,8 @@ export class CollabSession {
       if (result.ok && result.record) {
         this.lastSyncAt = nowIso();
         await this.options.onRemoteRecord(result.record, {
-          clientId: 'supabase',
-          name: 'Supabase',
+          clientId: this.isLocal() ? 'server' : 'supabase',
+          name: this.isLocal() ? 'Máy chủ' : 'Supabase',
           updatedAt: this.lastSyncAt,
           initial
         });
@@ -276,7 +440,10 @@ export class CollabSession {
       }
 
       if (!result.ok && /chưa có bản đồng bộ/i.test(result.message)) {
-        this.emitStatus(this.connected ? 'connected' : 'connecting', 'Chưa có dữ liệu trên Supabase. Bản hiện tại sẽ được đẩy lên khi có thay đổi.');
+        this.emitStatus(
+          this.connected ? 'connected' : 'connecting',
+          `Chưa có dữ liệu trên ${this.providerLabel()}. Bản hiện tại sẽ được đẩy lên khi có thay đổi.`
+        );
         return result;
       }
 
@@ -313,7 +480,11 @@ export class CollabSession {
 
     this.pushing = true;
     try {
-      const result = await pushCourse(record, this.options.config);
+      const result = await pushCourse(
+        record,
+        this.options.config,
+        this.isLocal() ? { id: this.clientId, name: this.displayName } : undefined
+      );
       if (this.stopped) return { ok: false, message: 'Cộng tác đã tắt.' };
       if (result.ok) {
         this.lastSyncAt = nowIso();
@@ -334,7 +505,8 @@ export class CollabSession {
   }
 
   private async broadcastChanged(record: CourseRecord): Promise<void> {
-    if (!this.channel || !this.connected) return;
+    // Với máy chủ riêng, server tự broadcast sau khi PUT thành công.
+    if (this.isLocal() || !this.channel || !this.connected) return;
     try {
       await this.channel.send({
         type: 'broadcast',
@@ -410,6 +582,7 @@ export class CollabSession {
     this.remotePullTimer = null;
     this.pollTimer = null;
     this.pendingRecord = null;
+    this.clearLocalSocket();
 
     if (this.channel) {
       void this.channel.unsubscribe();
