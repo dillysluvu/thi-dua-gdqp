@@ -61,6 +61,8 @@ Mọi người phải dùng cùng địa chỉ, mã truy cập và mã nhóm. V�
 
 Dữ liệu thực tế của 1.770 sinh viên chỉ vài MB. 10GB chủ yếu để dành cho backup và mở rộng sau này.
 
+Lưu ý: ảnh ext4 10GB có metadata và một phần block dự phòng, nên `df` có thể báo dung lượng trống thấp hơn 10GB một chút. Server vẫn kiểm tra theo `MAX_DATA_BYTES` và trả `507` khi đầy; nếu ổ đĩa vật lý đầy trước, server cũng trả `507` thay vì lỗi 500.
+
 ### Giới hạn cứng bằng ổ đĩa ảo 10GB (tùy chọn)
 
 Nếu muốn hệ điều hành chặn cứng ở 10GB, tạo file ext4 và mount bằng `fuse2fs` (không cần root):
