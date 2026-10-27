@@ -531,6 +531,39 @@
                             <input type="text" id="studentNote" maxlength="160" placeholder="Ghi chú thêm">
                         </div>
                     </div>
+                    <details class="student-extra-fields" id="studentExtraFields">
+                        <summary>Thông tin bổ sung từ file biên chế (lớp, ngày sinh, CCCD...)</summary>
+                        <div class="student-editor-grid student-extra-grid">
+                            <div class="field">
+                                <label for="studentClassName">Lớp</label>
+                                <input type="text" id="studentClassName" maxlength="40" placeholder="2026DH1">
+                            </div>
+                            <div class="field">
+                                <label for="studentSchool">Trường / đơn vị</label>
+                                <input type="text" id="studentSchool" maxlength="60" placeholder="ĐHKT">
+                            </div>
+                            <div class="field">
+                                <label for="studentBirthDate">Ngày sinh</label>
+                                <input type="text" id="studentBirthDate" maxlength="20" placeholder="26/02/2008">
+                            </div>
+                            <div class="field">
+                                <label for="studentHometown">Nơi sinh</label>
+                                <input type="text" id="studentHometown" maxlength="60" placeholder="Thanh Hóa">
+                            </div>
+                            <div class="field">
+                                <label for="studentGender">Giới tính</label>
+                                <input type="text" id="studentGender" maxlength="20" placeholder="Nam / Nữ">
+                            </div>
+                            <div class="field">
+                                <label for="studentEthnicity">Dân tộc</label>
+                                <input type="text" id="studentEthnicity" maxlength="40" placeholder="Kinh">
+                            </div>
+                            <div class="field">
+                                <label for="studentCccd">CCCD / CMND</label>
+                                <input type="text" id="studentCccd" maxlength="20" placeholder="Không bắt buộc">
+                            </div>
+                        </div>
+                    </details>
                     <div class="student-editor-actions">
                         <span class="student-status" id="studentStatus"></span>
                         <span class="spacer"></span>
@@ -542,6 +575,10 @@
                 <div id="studentListPanel">
                     <div class="student-toolbar">
                         <input type="search" id="studentSearch" placeholder="Tìm tên, mã SV, phòng, tiểu đội...">
+                        <button type="button" class="btn-modal primary" id="btnAddStudent">+ Thêm sinh viên</button>
+                        <button type="button" class="btn-modal secondary" id="btnImportStudents">Nhập Excel/CSV</button>
+                        <button type="button" class="btn-modal ghost" id="btnExportStudents">Xuất CSV</button>
+                        <div class="student-toolbar-break" aria-hidden="true"></div>
                         <select id="studentBuildingFilter" aria-label="Lọc theo tòa"></select>
                         <select id="studentRoomFilter" aria-label="Lọc theo phòng"></select>
                         <select id="studentPlatoonFilter" aria-label="Lọc theo trung đội"></select>
@@ -549,12 +586,31 @@
                             <option value="merge">Nhập: cập nhật</option>
                             <option value="replace">Nhập: thay thế</option>
                         </select>
-                        <button type="button" class="btn-modal primary" id="btnAddStudent">+ Thêm sinh viên</button>
-                        <button type="button" class="btn-modal secondary" id="btnImportStudents">Nhập Excel/CSV</button>
-                        <button type="button" class="btn-modal ghost" id="btnExportStudents">Xuất CSV</button>
-                        <input type="file" id="studentFileInput" accept=".xls,.xlsx,.csv,.tsv,.txt" hidden>
+                        <input type="file" id="studentFileInput" accept=".xls,.xlsx,.csv,.tsv,.txt" multiple hidden>
                     </div>
+                    <div class="student-view-bar">
+                        <div class="student-view-toggle" role="group" aria-label="Cách nhóm danh sách">
+                            <button type="button" class="active" data-student-group="room" id="studentGroupRoom">Theo phòng</button>
+                            <button type="button" data-student-group="platoon" id="studentGroupPlatoon">Theo trung đội</button>
+                        </div>
+                        <div class="student-quick-filters" role="group" aria-label="Lọc nhanh">
+                            <button type="button" class="active" data-student-quick="all" id="studentQuickAll">Tất cả</button>
+                            <button type="button" data-student-quick="leaders" id="studentQuickLeaders">Cán sự</button>
+                            <button type="button" data-student-quick="noRoom" id="studentQuickNoRoom">Chưa xếp phòng</button>
+                            <button type="button" data-student-quick="noPlatoon" id="studentQuickNoPlatoon">Chưa xếp TĐ</button>
+                        </div>
+                    </div>
+                    <details class="student-import-help">
+                        <summary>Mẫu Excel biên chế nhiều tiểu đội được hỗ trợ</summary>
+                        <div>
+                            Có thể chọn nhiều file cùng lúc. Web tự đọc các khối
+                            <strong>“Danh sách biên chế tiểu đội”</strong>, lấy trung đội, tiểu đội, phòng ở,
+                            họ tên ghép từ hai cột, mã SV, lớp, ngày sinh, CCCD... Nếu file có sheet
+                            <strong>“Nha o”</strong>, hãy nhập sheet đó ở mục nhập bảng trung đội để cập nhật danh sách 56 trung đội.
+                        </div>
+                    </details>
                     <div class="student-summary" id="studentSummary"></div>
+                    <div class="student-list-status" id="studentListStatus" hidden></div>
                     <div class="student-room-list" id="studentRoomList"></div>
                 </div>
 
@@ -883,7 +939,7 @@ create policy "course_sync_all" on public.course_sync
                     <li><strong>Tìm nhanh:</strong> gõ số trung đội (vd: <code>15</code>), tên tòa (vd: <code>C7</code>), số phòng hoặc nội dung ghi chú.</li>
                     <li><strong>Dữ liệu tự lưu:</strong> mọi thay đổi được lưu vào trình duyệt trên thiết bị này, theo từng khóa học. Hãy xuất file <strong>.json</strong> định kỳ để sao lưu hoặc chuyển sang máy khác.</li>
                     <li><strong>Nhập Excel / Google Sheets:</strong> menu ⋮ → <strong>Nhập Excel / Google Sheets</strong>. Hỗ trợ file <strong>.xls, .xlsx, .csv, .tsv</strong> hoặc dán trực tiếp từ Excel/Sheets; có xem trước trước khi áp dụng.</li>
-                    <li><strong>Danh sách sinh viên &amp; cán sự:</strong> menu ⋮ → <strong>Danh Sách Sinh Viên &amp; Cán Sự</strong>. Có thể nhập Excel/CSV, thêm/sửa/xóa, lọc theo phòng/trung đội và gán chức vụ Tiểu đội trưởng, Trung đội trưởng, Phó đại đội trưởng. Bấm <strong>SV: n</strong> trên thẻ để mở đúng trung đội.</li>
+                    <li><strong>Danh sách sinh viên &amp; cán sự:</strong> menu ⋮ → <strong>Danh Sách Sinh Viên &amp; Cán Sự</strong>. Có thể chọn nhiều file Excel/CSV, nhập mẫu <strong>biên chế nhiều tiểu đội</strong>, thêm/sửa/xóa, nhóm theo phòng hoặc trung đội, lọc nhanh cán sự/chưa xếp phòng và gán chức vụ Tiểu đội trưởng, Trung đội trưởng, Phó đại đội trưởng. Bấm <strong>SV: n</strong> trên thẻ để mở đúng trung đội.</li>
                     <li><strong>Cộng tác nhóm:</strong> menu ⋮ → <strong>Cộng Tác Nhóm</strong>. Cần cấu hình Supabase trước. Nhiều người có thể cùng sửa; thay đổi được báo qua Realtime và vẫn tự đồng bộ mỗi 15 giây nếu Realtime không khả dụng.</li>
                     <li><strong>Khôi phục / chuyển máy:</strong> mở menu ⋮ → <strong>Nhập File Sao Lưu (.json)</strong>. Dữ liệu cũ sẽ được thay thế sau khi xác nhận.</li>
                     <li><strong>In báo cáo:</strong> chọn ngày trên màn hình chính, sau đó menu ⋮ → <strong>In / Xuất PDF Báo Cáo</strong>. Trong hộp thoại in, chọn “Save as PDF” nếu cần gửi file.</li>

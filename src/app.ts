@@ -35,6 +35,7 @@ import {
     normalizeStudentTombstones,
     sortStudents,
     groupStudentsByRoom,
+    groupStudentsByPlatoon,
     parseStudentRows,
     mergeStudentLists,
     studentCSV,
@@ -225,7 +226,22 @@ const elements: Record<string, any> = {
     studentPosition: document.getElementById('studentPosition'),
     studentPhone: document.getElementById('studentPhone'),
     studentNote: document.getElementById('studentNote'),
+    studentClassName: document.getElementById('studentClassName'),
+    studentSchool: document.getElementById('studentSchool'),
+    studentBirthDate: document.getElementById('studentBirthDate'),
+    studentHometown: document.getElementById('studentHometown'),
+    studentGender: document.getElementById('studentGender'),
+    studentEthnicity: document.getElementById('studentEthnicity'),
+    studentCccd: document.getElementById('studentCccd'),
+    studentExtraFields: document.getElementById('studentExtraFields'),
     studentStatus: document.getElementById('studentStatus'),
+    studentListStatus: document.getElementById('studentListStatus'),
+    studentGroupRoom: document.getElementById('studentGroupRoom'),
+    studentGroupPlatoon: document.getElementById('studentGroupPlatoon'),
+    studentQuickAll: document.getElementById('studentQuickAll'),
+    studentQuickLeaders: document.getElementById('studentQuickLeaders'),
+    studentQuickNoRoom: document.getElementById('studentQuickNoRoom'),
+    studentQuickNoPlatoon: document.getElementById('studentQuickNoPlatoon'),
     studentSearch: document.getElementById('studentSearch'),
     studentBuildingFilter: document.getElementById('studentBuildingFilter'),
     studentRoomFilter: document.getElementById('studentRoomFilter'),
@@ -989,7 +1005,9 @@ const studentUi = {
     query: '',
     building: 'ALL',
     room: 'ALL',
-    platoon: 'ALL'
+    platoon: 'ALL',
+    groupBy: 'room' as 'room' | 'platoon',
+    quick: 'all' as 'all' | 'leaders' | 'noRoom' | 'noPlatoon'
 };
 
 function studentInitials(name: string): string {
@@ -1017,6 +1035,9 @@ function getFilteredStudents(): Student[] {
         if (studentUi.building !== 'ALL' && student.building !== studentUi.building) return false;
         if (studentUi.room !== 'ALL' && student.room !== studentUi.room) return false;
         if (studentUi.platoon !== 'ALL' && String(student.trungDoi || '') !== studentUi.platoon) return false;
+        if (studentUi.quick === 'leaders' && !isLeaderPosition(student.position)) return false;
+        if (studentUi.quick === 'noRoom' && String(student.room || '').trim()) return false;
+        if (studentUi.quick === 'noPlatoon' && String(student.trungDoi || '').trim()) return false;
         if (!query) return true;
         return [
             student.name,
@@ -1027,7 +1048,14 @@ function getFilteredStudents(): Student[] {
             student.trungDoi,
             student.position,
             student.phone,
-            student.note
+            student.note,
+            student.className,
+            student.school,
+            student.birthDate,
+            student.hometown,
+            student.gender,
+            student.ethnicity,
+            student.cccd
         ].some(value => normalizeText(value).includes(query));
     });
 }
@@ -1042,7 +1070,10 @@ function renderStudentFilters() {
         .map((student: Student) => student.room);
     if (studentUi.room !== 'ALL' && !rooms.includes(studentUi.room)) studentUi.room = 'ALL';
 
-    const platoonIds = state.items.map((item: any) => String(item.id));
+    const platoonIds: string[] = Array.from(new Set<string>([
+        ...state.items.map((item: any) => String(item.id)),
+        ...state.students.map((student: Student) => String(student.trungDoi || '')).filter(Boolean)
+    ])).sort((a: string, b: string) => Number(a) - Number(b) || a.localeCompare(b, 'vi'));
     if (studentUi.platoon !== 'ALL' && !platoonIds.includes(studentUi.platoon)) studentUi.platoon = 'ALL';
 
     elements.studentBuildingFilter.innerHTML = studentFilterOptions(buildings, studentUi.building, 'Tất cả tòa');
@@ -1062,22 +1093,32 @@ function renderStudentFilters() {
 
 function renderStudentRows(students: Student[]): string {
     return students.map(student => {
-        const meta = [
-            student.code ? `Mã: ${escapeHtml(student.code)}` : '',
-            student.trungDoi ? `TĐ ${escapeHtml(student.trungDoi)}` : '',
-            student.tieuDoi ? `Tiểu đội ${escapeHtml(student.tieuDoi)}` : '',
-            student.phone ? `SĐT: ${escapeHtml(student.phone)}` : ''
-        ].filter(Boolean).join(' · ');
+        const chips = [
+            student.code ? `<span class="student-chip code">${escapeHtml(student.code)}</span>` : '',
+            student.trungDoi ? `<span class="student-chip platoon">TĐ ${escapeHtml(student.trungDoi)}</span>` : '',
+            student.tieuDoi ? `<span class="student-chip squad">Tiểu đội ${escapeHtml(student.tieuDoi)}</span>` : '',
+            student.room ? `<span class="student-chip room">${student.building ? `${escapeHtml(student.building)} · ` : ''}P. ${escapeHtml(student.room)}</span>` : '',
+            student.className ? `<span class="student-chip class">Lớp ${escapeHtml(student.className)}</span>` : ''
+        ].filter(Boolean).join('');
+        const extra = [
+            student.school ? `Trường ${student.school}` : '',
+            student.birthDate ? `Sinh ${student.birthDate}` : '',
+            student.hometown ? `Quê ${student.hometown}` : '',
+            student.ethnicity ? `Dân tộc ${student.ethnicity}` : '',
+            student.cccd ? `CCCD ${student.cccd}` : '',
+            student.phone ? `SĐT ${student.phone}` : ''
+        ].filter(Boolean).map(value => `<span>${escapeHtml(value)}</span>`).join('');
 
         return `
             <div class="student-row" data-student-id="${escapeHtml(student.id)}">
-                <div class="student-avatar">${escapeHtml(studentInitials(student.name))}</div>
+                <div class="student-avatar ${studentPositionClass(student.position)}">${escapeHtml(studentInitials(student.name))}</div>
                 <div class="student-row-main">
                     <div class="student-row-name">
                         ${escapeHtml(student.name)}
                         <span class="student-position ${studentPositionClass(student.position)}">${escapeHtml(student.position || 'Học viên')}</span>
                     </div>
-                    <div class="student-row-meta">${meta || 'Chưa có thông tin lớp/phòng'}</div>
+                    <div class="student-chip-row">${chips || '<span class="student-chip muted">Chưa có thông tin lớp/phòng</span>'}</div>
+                    ${extra ? `<div class="student-row-extra">${extra}</div>` : ''}
                     ${student.note ? `<div class="student-row-note">${escapeHtml(student.note)}</div>` : ''}
                 </div>
                 <div class="student-row-actions">
@@ -1091,38 +1132,81 @@ function renderStudentRows(students: Student[]): string {
 
 function renderStudentRoomList() {
     const students = getFilteredStudents();
-    const groups = groupStudentsByRoom(students);
+    const usePlatoon = studentUi.groupBy === 'platoon';
+    const groups = usePlatoon ? groupStudentsByPlatoon(students) : groupStudentsByRoom(students);
+    const allPlatoonIds = new Set([
+        ...state.items.map((item: any) => String(item.id)),
+        ...state.students.map((student: Student) => String(student.trungDoi || '')).filter(Boolean)
+    ]);
     const totalRooms = new Set(state.students.map((student: Student) => `${normalizeText(student.building)}::${normalizeText(student.room)}`).filter(key => key !== '::')).size;
     const leaderCount = state.students.filter((student: Student) => isLeaderPosition(student.position)).length;
+    const noRoomCount = state.students.filter((student: Student) => !String(student.room || '').trim()).length;
+    const noPlatoonCount = state.students.filter((student: Student) => !String(student.trungDoi || '').trim()).length;
 
     elements.studentSummary.innerHTML = `
-        <span><strong>${state.students.length}</strong> sinh viên</span>
-        <span><strong>${totalRooms}</strong> phòng</span>
-        <span><strong>${state.items.length}</strong> trung đội</span>
-        <span><strong>${leaderCount}</strong> cán sự</span>
-        ${students.length !== state.students.length ? `<span class="student-filter-count">Đang hiện ${students.length}</span>` : ''}
+        <div class="student-stat"><strong>${state.students.length}</strong><span>Sinh viên</span></div>
+        <div class="student-stat"><strong>${totalRooms}</strong><span>Phòng</span></div>
+        <div class="student-stat"><strong>${allPlatoonIds.size}</strong><span>Trung đội</span></div>
+        <div class="student-stat"><strong>${leaderCount}</strong><span>Cán sự</span></div>
+        <div class="student-stat ${noRoomCount ? 'warning' : ''}"><strong>${noRoomCount}</strong><span>Chưa xếp phòng</span></div>
+        <div class="student-stat ${noPlatoonCount ? 'warning' : ''}"><strong>${noPlatoonCount}</strong><span>Chưa xếp TĐ</span></div>
+        ${students.length !== state.students.length ? `<div class="student-stat filtered"><strong>${students.length}</strong><span>Đang hiện</span></div>` : ''}
     `;
 
+    elements.studentGroupRoom?.classList.toggle('active', !usePlatoon);
+    elements.studentGroupPlatoon?.classList.toggle('active', usePlatoon);
+    elements.studentQuickAll?.classList.toggle('active', studentUi.quick === 'all');
+    elements.studentQuickLeaders?.classList.toggle('active', studentUi.quick === 'leaders');
+    elements.studentQuickNoRoom?.classList.toggle('active', studentUi.quick === 'noRoom');
+    elements.studentQuickNoPlatoon?.classList.toggle('active', studentUi.quick === 'noPlatoon');
+
     if (!groups.length) {
-        elements.studentRoomList.innerHTML = `<div class="empty-state">Chưa có sinh viên phù hợp. Bấm <strong>+ Thêm sinh viên</strong> hoặc <strong>Nhập Excel/CSV</strong> để bắt đầu.</div>`;
+        const quickLabel = studentUi.quick === 'leaders' ? 'cán sự'
+            : studentUi.quick === 'noRoom' ? 'sinh viên chưa xếp phòng'
+            : studentUi.quick === 'noPlatoon' ? 'sinh viên chưa xếp trung đội'
+            : 'sinh viên';
+        const hint = studentUi.quick === 'leaders'
+            ? 'Hãy sửa chức vụ của sinh viên trong tab Sinh viên hoặc bấm <strong>+ Thêm sinh viên</strong>.'
+            : 'Bấm <strong>+ Thêm sinh viên</strong> hoặc <strong>Nhập Excel/CSV</strong> để bắt đầu.';
+        elements.studentRoomList.innerHTML = `<div class="empty-state">Chưa có ${quickLabel} phù hợp. ${hint}</div>`;
         return;
     }
 
     elements.studentRoomList.innerHTML = groups.map(group => {
+        if (usePlatoon) {
+            const platoonGroup = group as ReturnType<typeof groupStudentsByPlatoon>[number];
+            const unitInfo = [
+                platoonGroup.tieuDois.length ? `Tiểu đội ${platoonGroup.tieuDois.join(', ')}` : '',
+                platoonGroup.rooms.length ? `Phòng ${platoonGroup.rooms.slice(0, 6).join(', ')}${platoonGroup.rooms.length > 6 ? '…' : ''}` : ''
+            ].filter(Boolean).join(' · ');
+            return `
+                <section class="student-room-group student-platoon-group">
+                    <div class="student-room-head">
+                        <div>
+                            <div class="student-room-title">${platoonGroup.trungDoi ? `Trung đội ${escapeHtml(platoonGroup.trungDoi)}` : 'Chưa xếp trung đội'}</div>
+                            <div class="student-room-sub">${platoonGroup.students.length} sinh viên${unitInfo ? ` · ${escapeHtml(unitInfo)}` : ''}</div>
+                        </div>
+                        <span class="student-room-count">${platoonGroup.students.length}</span>
+                    </div>
+                    <div class="student-rows">${renderStudentRows(platoonGroup.students)}</div>
+                </section>
+            `;
+        }
+        const roomGroup = group as ReturnType<typeof groupStudentsByRoom>[number];
         const unitInfo = [
-            group.trungDois.length ? `TĐ ${group.trungDois.join(', ')}` : '',
-            group.tieuDois.length ? `Tiểu đội ${group.tieuDois.join(', ')}` : ''
+            roomGroup.trungDois.length ? `TĐ ${roomGroup.trungDois.join(', ')}` : '',
+            roomGroup.tieuDois.length ? `Tiểu đội ${roomGroup.tieuDois.join(', ')}` : ''
         ].filter(Boolean).join(' · ');
         return `
             <section class="student-room-group">
                 <div class="student-room-head">
                     <div>
-                        <div class="student-room-title">${escapeHtml(group.building || 'Chưa xếp tòa')} · Phòng ${escapeHtml(group.room || '—')}</div>
-                        <div class="student-room-sub">${group.students.length} sinh viên${unitInfo ? ` · ${escapeHtml(unitInfo)}` : ''}</div>
+                        <div class="student-room-title">${roomGroup.building || roomGroup.room ? `${escapeHtml(roomGroup.building || 'Chưa xếp tòa')} · Phòng ${escapeHtml(roomGroup.room || '—')}` : 'Chưa xếp phòng'}</div>
+                        <div class="student-room-sub">${roomGroup.students.length} sinh viên${unitInfo ? ` · ${escapeHtml(unitInfo)}` : ''}</div>
                     </div>
-                    <span class="student-room-count">${group.students.length}</span>
+                    <span class="student-room-count">${roomGroup.students.length}</span>
                 </div>
-                <div class="student-rows">${renderStudentRows(group.students)}</div>
+                <div class="student-rows">${renderStudentRows(roomGroup.students)}</div>
             </section>
         `;
     }).join('');
@@ -1191,6 +1275,7 @@ function openStudentsModal(options: { platoonId?: string; tab?: 'students' | 'le
         studentUi.building = 'ALL';
         studentUi.room = 'ALL';
         studentUi.query = '';
+        studentUi.quick = 'all';
         if (elements.studentSearch) elements.studentSearch.value = '';
     }
     if (options.tab) studentUi.tab = options.tab;
@@ -1234,6 +1319,24 @@ function openStudentEditor(student: Student | null = null, presetPosition = 'H�
     elements.studentTrungDoi.value = student ? student.trungDoi : (studentUi.platoon !== 'ALL' ? studentUi.platoon : '');
     elements.studentPhone.value = student ? student.phone : '';
     elements.studentNote.value = student ? student.note : '';
+    elements.studentClassName.value = student ? student.className : '';
+    elements.studentSchool.value = student ? student.school : '';
+    elements.studentBirthDate.value = student ? student.birthDate : '';
+    elements.studentHometown.value = student ? student.hometown : '';
+    elements.studentGender.value = student ? student.gender : '';
+    elements.studentEthnicity.value = student ? student.ethnicity : '';
+    elements.studentCccd.value = student ? student.cccd : '';
+    if (elements.studentExtraFields) {
+        elements.studentExtraFields.open = Boolean(student && [
+            student.className,
+            student.school,
+            student.birthDate,
+            student.hometown,
+            student.gender,
+            student.ethnicity,
+            student.cccd
+        ].some(Boolean));
+    }
     populateStudentPositionSelect(student ? student.position : presetPosition);
     elements.studentEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     setTimeout(() => elements.studentName.focus(), 80);
@@ -1274,6 +1377,7 @@ function saveStudentFromForm() {
     const id = String(elements.studentEditId.value || '');
     const existing = state.students.find((student: Student) => student.id === id);
     const student: Student = {
+        ...(existing || {}),
         id: existing ? existing.id : `sv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
         name,
         code: String(elements.studentCode.value || '').trim(),
@@ -1284,6 +1388,13 @@ function saveStudentFromForm() {
         position: normalizePosition(elements.studentPosition.value),
         phone: String(elements.studentPhone.value || '').trim(),
         note: String(elements.studentNote.value || '').trim(),
+        className: String(elements.studentClassName.value || '').trim(),
+        school: String(elements.studentSchool.value || '').trim(),
+        birthDate: String(elements.studentBirthDate.value || '').trim(),
+        hometown: String(elements.studentHometown.value || '').trim(),
+        gender: String(elements.studentGender.value || '').trim(),
+        ethnicity: String(elements.studentEthnicity.value || '').trim(),
+        cccd: String(elements.studentCccd.value || '').trim(),
         updatedAt: now,
         updatedBy: state.graderName || 'Giảng viên'
     };
@@ -1349,67 +1460,127 @@ function clearLeaderPosition(id: string) {
     showToast('Đã bỏ chức vụ cán sự.');
 }
 
-async function importStudentsFromFile(file: File) {
+async function importStudentsFromFile(files: File[]) {
     if (state.locked) {
         showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi nhập danh sách sinh viên.');
         return;
     }
-    if (!file) return;
+    const fileList = Array.from(files || []).filter(Boolean);
+    if (!fileList.length) return;
 
-    elements.studentStatus.textContent = 'Đang đọc file...';
-    elements.studentStatus.className = 'student-status';
+    const setStatus = (message: string, type = '') => {
+        if (elements.studentListStatus) {
+            elements.studentListStatus.hidden = !message;
+            elements.studentListStatus.textContent = message;
+            elements.studentListStatus.className = `student-list-status${type ? ` ${type}` : ''}`;
+        }
+        elements.studentStatus.textContent = message;
+        elements.studentStatus.className = `student-status${type ? ` ${type}` : ''}`;
+    };
+
+    setStatus(`Đang đọc ${fileList.length} file...`);
     try {
-        const workbook = await parseSheetFile(file);
-        let best: ReturnType<typeof parseStudentRows> | null = null;
-        let bestName = '';
-        workbook.sheets.forEach(sheet => {
-            const result = parseStudentRows(sheet.rows, state.items);
-            if (!best || result.students.length > best.students.length) {
-                best = result;
-                bestName = sheet.name;
-            }
-        });
+        const summaries: string[] = [];
+        const allStudents: Student[] = [];
+        const allErrors: string[] = [];
 
-        if (!best || !best.students.length) {
-            const message = best && best.errors.length
-                ? best.errors.slice(0, 4).join(' · ')
-                : 'Không đọc được sinh viên từ file này.';
-            elements.studentStatus.textContent = message;
-            elements.studentStatus.className = 'student-status error';
+        for (const file of fileList) {
+            try {
+                const workbook = await parseSheetFile(file);
+                let best: ReturnType<typeof parseStudentRows> | null = null;
+                let bestName = '';
+                workbook.sheets.forEach(sheet => {
+                    const result = parseStudentRows(sheet.rows, state.items);
+                    if (!best || result.students.length > best.students.length) {
+                        best = result;
+                        bestName = sheet.name;
+                    }
+                });
+
+                if (!best || !best.students.length) {
+                    const message = best && best.errors.length
+                        ? best.errors.slice(0, 2).join(' · ')
+                        : 'không đọc được sinh viên';
+                    summaries.push(`${file.name}: 0 sinh viên`);
+                    allErrors.push(`${file.name}: ${message}`);
+                    continue;
+                }
+
+                allStudents.push(...best.students);
+                summaries.push(`${file.name}: ${best.students.length} sinh viên (trang "${bestName}")`);
+                if (best.errors.length) {
+                    allErrors.push(...best.errors.slice(0, 2).map(error => `${file.name}: ${error}`));
+                }
+            } catch (error) {
+                summaries.push(`${file.name}: lỗi đọc file`);
+                allErrors.push(`${file.name}: ${(error as Error).message}`);
+            }
+        }
+
+        if (!allStudents.length) {
+            const message = allErrors.length
+                ? allErrors.slice(0, 4).join(' · ')
+                : 'Không đọc được sinh viên từ các file đã chọn.';
+            setStatus(message, 'error');
             showToast(message);
             return;
         }
 
-        const result = best;
+        const incomingBase = mergeStudentLists([], allStudents);
         const mode = elements.studentImportMode.value;
         const ok = await customConfirm(
             'Nhập Danh Sách Sinh Viên',
-            `Tìm thấy ${result.students.length} sinh viên trong trang "${bestName}".\n`
-            + `${mode === 'replace' ? 'Thay thế toàn bộ danh sách hiện tại?' : 'Cập nhật vào danh sách hiện tại?'}`
-            + (result.errors.length ? `\n${result.errors.length} dòng lỗi sẽ bị bỏ qua.` : '')
+            `Tìm thấy ${incomingBase.length} sinh viên trong ${fileList.length} file:\n`
+            + summaries.join('\n')
+            + `\n\n${mode === 'replace' ? 'Thay thế toàn bộ danh sách hiện tại?' : 'Cập nhật vào danh sách hiện tại?'}`
+            + (allErrors.length ? `\n${allErrors.length} lỗi/cảnh báo sẽ bị bỏ qua.` : '')
         );
         if (!ok) {
-            elements.studentStatus.textContent = '';
+            setStatus('');
             return;
         }
 
         const now = new Date().toISOString();
         const previousStudents = state.students.slice();
-        const incoming = result.students.map(student => ({ ...student, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
+        const existingByCode = new Map<string, Student>();
+        const existingByNameRoom = new Map<string, Student>();
+        state.students.forEach(student => {
+            if (student.code) existingByCode.set(normalizeText(student.code), student);
+            existingByNameRoom.set(`${normalizeText(student.name)}::${normalizeText(student.room)}`, student);
+        });
+        const incoming = incomingBase.map(student => {
+            const existing = student.code
+                ? existingByCode.get(normalizeText(student.code))
+                : existingByNameRoom.get(`${normalizeText(student.name)}::${normalizeText(student.room)}`);
+            const keepPosition = mode === 'merge' && existing && student.position === 'Học viên' && isLeaderPosition(existing.position)
+                ? existing.position
+                : student.position;
+            return {
+                ...student,
+                position: keepPosition,
+                phone: student.phone || (mode === 'merge' ? existing?.phone || '' : ''),
+                note: student.note || (mode === 'merge' ? existing?.note || '' : ''),
+                updatedAt: now,
+                updatedBy: state.graderName || 'Giảng viên'
+            };
+        });
         state.students = mode === 'replace' ? sortStudents(incoming) : mergeStudentLists(state.students, incoming);
         reconcileStudentTombstones(previousStudents, state.students, now);
         state.studentsUpdatedAt = now;
-        logAudit('Nhập danh sách sinh viên', `${mode === 'replace' ? 'Thay thế' : 'Cập nhật'} ${incoming.length} sinh viên từ ${file.name}`);
+        logAudit(
+            'Nhập danh sách sinh viên',
+            `${mode === 'replace' ? 'Thay thế' : 'Cập nhật'} ${incoming.length} sinh viên từ ${fileList.map(file => file.name).join(', ')}`
+        );
         saveData();
         renderStudentUI();
         render();
-        elements.studentStatus.textContent = `Đã nhập ${incoming.length} sinh viên từ ${file.name}.`;
-        elements.studentStatus.className = 'student-status ok';
+        const success = `Đã nhập ${incoming.length} sinh viên từ ${fileList.length} file.`
+            + (allErrors.length ? ` Bỏ qua ${allErrors.length} lỗi/cảnh báo.` : '');
+        setStatus(success, 'ok');
         showToast(`Đã nhập ${incoming.length} sinh viên.`);
     } catch (error) {
         const message = `Không đọc được file: ${(error as Error).message}`;
-        elements.studentStatus.textContent = message;
-        elements.studentStatus.className = 'student-status error';
+        setStatus(message, 'error');
         showToast(message);
     }
 }
@@ -4058,6 +4229,30 @@ function setupEventListeners() {
         studentUi.query = elements.studentSearch.value;
         renderStudentRoomList();
     });
+    elements.studentGroupRoom.addEventListener('click', () => {
+        studentUi.groupBy = 'room';
+        renderStudentRoomList();
+    });
+    elements.studentGroupPlatoon.addEventListener('click', () => {
+        studentUi.groupBy = 'platoon';
+        renderStudentRoomList();
+    });
+    elements.studentQuickAll.addEventListener('click', () => {
+        studentUi.quick = 'all';
+        renderStudentRoomList();
+    });
+    elements.studentQuickLeaders.addEventListener('click', () => {
+        studentUi.quick = 'leaders';
+        renderStudentRoomList();
+    });
+    elements.studentQuickNoRoom.addEventListener('click', () => {
+        studentUi.quick = 'noRoom';
+        renderStudentRoomList();
+    });
+    elements.studentQuickNoPlatoon.addEventListener('click', () => {
+        studentUi.quick = 'noPlatoon';
+        renderStudentRoomList();
+    });
     elements.studentBuildingFilter.addEventListener('change', () => {
         studentUi.building = elements.studentBuildingFilter.value;
         studentUi.room = 'ALL';
@@ -4080,9 +4275,10 @@ function setupEventListeners() {
     elements.btnSaveStudent.addEventListener('click', saveStudentFromForm);
     elements.btnImportStudents.addEventListener('click', () => elements.studentFileInput.click());
     elements.studentFileInput.addEventListener('change', async event => {
-        const file = event.target.files && event.target.files[0];
-        await importStudentsFromFile(file);
-        event.target.value = '';
+        const input = event.target as HTMLInputElement;
+        const files = Array.from(input.files || []);
+        await importStudentsFromFile(files);
+        input.value = '';
     });
     elements.btnExportStudents.addEventListener('click', () => exportStudentCSV(false));
     elements.btnExportLeaders.addEventListener('click', () => exportStudentCSV(true));

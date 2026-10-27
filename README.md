@@ -23,9 +23,11 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 ### Danh sách sinh viên và ban cán sự
 
 - Mở menu **⋮ → Danh Sách Sinh Viên & Cán Sự**.
-- Nhập danh sách từ Excel/CSV với các cột họ tên, mã SV, tòa, phòng, tiểu đội, trung đội, chức vụ, số điện thoại, ghi chú.
-- Xem danh sách nhóm theo từng phòng; lọc theo tòa, phòng, trung đội, tiểu đội và tìm kiếm không dấu.
-- Thêm, sửa, xóa sinh viên trực tiếp trên giao diện.
+- Nhập danh sách từ Excel/CSV với các cột họ tên, mã SV, tòa, phòng, tiểu đội, trung đội, chức vụ, số điện thoại, ghi chú; giữ thêm lớp, trường, ngày sinh, nơi sinh, giới tính, dân tộc, CCCD nếu có.
+- Hỗ trợ mẫu **biên chế nhiều tiểu đội** của nhà trường: tự đọc từng khối “Danh sách biên chế tiểu đội”, ghép họ tên từ hai cột, nhận trung đội/tiểu đội/phòng/tòa và tự đánh số tiểu đội 1–3 trong từng trung đội.
+- Có thể chọn **nhiều file .xls/.xlsx cùng lúc** để nhập gộp (ví dụ file ĐHKT và file HVMM).
+- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, trung đội và tìm kiếm không dấu.
+- Thêm, sửa, xóa sinh viên trực tiếp trên giao diện; mở rộng phần thông tin bổ sung để sửa lớp, ngày sinh, CCCD...
 - Gán chức vụ **Tiểu đội trưởng**, **Trung đội trưởng**, **Phó đại đội trưởng**; tab **Ban cán sự** tổng hợp riêng để quản lý.
 - Bấm **SV: n** trên thẻ hoặc bảng điểm để mở đúng danh sách sinh viên của trung đội đó.
 - Xuất danh sách sinh viên hoặc ban cán sự ra CSV.
@@ -85,10 +87,17 @@ Vào menu **⋮ → Nhập Excel / Google Sheets**.
 Vào menu **⋮ → Danh Sách Sinh Viên & Cán Sự → Nhập Excel/CSV**.
 
 - Cột bắt buộc: **Họ tên**. Các cột còn lại là tùy chọn.
-- Tên cột được nhận diện tự động: `Họ tên`, `Mã SV`, `Tòa`, `Phòng`, `Tiểu đội`, `Trung đội`, `Chức vụ`, `SĐT`, `Ghi chú`.
+- Tên cột được nhận diện tự động: `Họ tên`, `Mã SV`, `Tòa`, `Phòng`, `Tiểu đội`, `Trung đội`, `Chức vụ`, `SĐT`, `Ghi chú`, `Lớp`, `Trường`, `Ngày sinh`, `Nơi sinh`, `Giới tính`, `Dân tộc`, `CCCD`.
 - Nếu file không có dòng tiêu đề, ứng dụng đọc theo thứ tự cột mặc định ở trên.
-- Chế độ **Cập nhật** giữ sinh viên hiện có và cập nhật theo mã SV hoặc họ tên + phòng; chế độ **Thay thế** xóa danh sách cũ rồi nhập mới.
-- Có thể xuất CSV để chỉnh sửa hàng loạt rồi nhập lại.
+- Chế độ **Cập nhật** giữ sinh viên hiện có và cập nhật theo mã SV; sinh viên chưa có mã mới đối chiếu theo họ tên + phòng. Chế độ **Thay thế** xóa danh sách cũ rồi nhập mới. Khi cập nhật, chức vụ cán sự, SĐT và ghi chú đã nhập tay được giữ lại nếu file mới để trống.
+- Có thể chọn nhiều file cùng lúc. Với file có cả sheet `Bienche` và `Nha o`, nên nhập sheet `Bienche` ở mục **Nhập danh sách sinh viên** và nhập sheet `Nha o` ở mục **Nhập Excel / Google Sheets** để cập nhật danh sách trung đội.
+- Với mẫu biên chế, ứng dụng tự nhận:
+  - dòng `Danh sách biên chế tiểu đội` và `Trung đội`;
+  - họ tên ghép từ cột họ đệm + cột tên;
+  - phòng/tòa từ dòng `Phòng ở` và cột phòng của từng sinh viên;
+  - tiểu đội gốc (ví dụ 46, 47, 48) được đổi thành tiểu đội 1, 2, 3 trong trung đội;
+  - trưởng nếu file có ghi tên ở dòng `Trung đội trưởng` / `Tiểu đội trưởng`.
+- Có thể xuất CSV để chỉnh sửa hàng loạt rồi nhập lại. File CSV có thêm các cột thông tin phụ; hãy giữ nguyên thứ tự cột khi nhập lại.
 
 ## Cài đặt PWA / dùng ngoại tuyến
 
