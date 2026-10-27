@@ -207,6 +207,9 @@ export class Store {
       this.db.exec('COMMIT');
     } catch (error) {
       try { this.db.exec('ROLLBACK'); } catch { /* ignore */ }
+      if (/SQLITE_FULL|database or disk is full/i.test(String(error?.message || error))) {
+        throw new QuotaExceededError('Ổ đĩa chứa dữ liệu đã đầy. Hãy xóa backup cũ hoặc tăng dung lượng.');
+      }
       throw error;
     }
 

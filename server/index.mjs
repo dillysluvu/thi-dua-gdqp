@@ -162,6 +162,14 @@ function sendError(req, res, error) {
     sendJson(req, res, error.status, { ok: false, code: error.code, message: error.message });
     return;
   }
+  if (/SQLITE_FULL|database or disk is full/i.test(String(error?.message || error))) {
+    sendJson(req, res, 507, {
+      ok: false,
+      code: 'quota_exceeded',
+      message: 'Ổ đĩa chứa dữ liệu đã đầy. Hãy xóa backup cũ hoặc tăng dung lượng.'
+    });
+    return;
+  }
   console.error('[thi-dua] Lỗi xử lý:', error);
   sendJson(req, res, 500, { ok: false, code: 'internal_error', message: 'Máy chủ gặp lỗi xử lý.' });
 }
