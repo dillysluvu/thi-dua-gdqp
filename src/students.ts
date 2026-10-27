@@ -549,7 +549,7 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
         code: cell(row, codeIndex),
         building: building || inferBuilding(items, trungDoi),
         room: roomInfo.room || currentRoom,
-        tieuDoi: '',
+        tieuDoi: block.tieuDoiRaw || '',
         trungDoi,
         position: '',
         phone: cell(row, phoneIndex),
@@ -593,18 +593,6 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
 
   groups.forEach(groupRecords => {
     const blockOrders = Array.from(new Set(groupRecords.map(record => record.blockOrder))).sort((a, b) => a - b);
-    const blockSquads = blockOrders.map(order => groupRecords.find(record => record.blockOrder === order)?.tieuDoiRaw || '');
-    const useOriginalSquads = blockSquads.every(value => {
-      const number = numericText(value);
-      return number >= 1 && number <= 3;
-    });
-    blockOrders.forEach((order, index) => {
-      const localSquad = useOriginalSquads ? String(numericText(blockSquads[index])) : String(index + 1);
-      groupRecords.filter(record => record.blockOrder === order).forEach(record => {
-        record.student.tieuDoi = localSquad;
-      });
-    });
-
     const leaderByRole: Array<[string, string]> = [];
     blockOrders.forEach(order => {
       const record = groupRecords.find(entry => entry.blockOrder === order);

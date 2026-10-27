@@ -246,7 +246,15 @@ const elements: Record<string, any> = {
     studentBuildingFilter: document.getElementById('studentBuildingFilter'),
     studentRoomFilter: document.getElementById('studentRoomFilter'),
     studentPlatoonFilter: document.getElementById('studentPlatoonFilter'),
+    studentTieuDoiFilter: document.getElementById('studentTieuDoiFilter'),
     studentImportMode: document.getElementById('studentImportMode'),
+    studentBulkBar: document.getElementById('studentBulkBar'),
+    studentSelectedCount: document.getElementById('studentSelectedCount'),
+    btnSelectVisible: document.getElementById('btnSelectVisible'),
+    studentBulkPosition: document.getElementById('studentBulkPosition'),
+    btnBulkAssign: document.getElementById('btnBulkAssign'),
+    btnBulkDelete: document.getElementById('btnBulkDelete'),
+    btnBulkClear: document.getElementById('btnBulkClear'),
     studentFileInput: document.getElementById('studentFileInput'),
     studentSummary: document.getElementById('studentSummary'),
     studentRoomList: document.getElementById('studentRoomList'),
@@ -266,6 +274,7 @@ const elements: Record<string, any> = {
     btnExportLeaders: document.getElementById('btnExportLeaders'),
     btnCancelStudent: document.getElementById('btnCancelStudent'),
     btnSaveStudent: document.getElementById('btnSaveStudent'),
+    btnSaveStudentNext: document.getElementById('btnSaveStudentNext'),
 
     // Backups
     backupModal: document.getElementById('backupModal'),
@@ -398,7 +407,9 @@ const elements: Record<string, any> = {
     dialogInput: document.getElementById('dialogInput'),
     btnDialogCancel: document.getElementById('btnDialogCancel'),
     btnDialogConfirm: document.getElementById('btnDialogConfirm'),
-    toastMsg: document.getElementById('toastMsg')
+    toastMsg: document.getElementById('toastMsg'),
+    toastText: document.getElementById('toastText'),
+    toastAction: document.getElementById('toastAction')
 };
 
 function dateToken() {
@@ -1006,8 +1017,10 @@ const studentUi = {
     building: 'ALL',
     room: 'ALL',
     platoon: 'ALL',
+    tieuDoi: 'ALL',
     groupBy: 'room' as 'room' | 'platoon',
-    quick: 'all' as 'all' | 'leaders' | 'noRoom' | 'noPlatoon'
+    quick: 'all' as 'all' | 'leaders' | 'noRoom' | 'noPlatoon',
+    selected: new Set<string>()
 };
 
 function studentInitials(name: string): string {
@@ -1035,6 +1048,7 @@ function getFilteredStudents(): Student[] {
         if (studentUi.building !== 'ALL' && student.building !== studentUi.building) return false;
         if (studentUi.room !== 'ALL' && student.room !== studentUi.room) return false;
         if (studentUi.platoon !== 'ALL' && String(student.trungDoi || '') !== studentUi.platoon) return false;
+        if (studentUi.tieuDoi !== 'ALL' && String(student.tieuDoi || '') !== studentUi.tieuDoi) return false;
         if (studentUi.quick === 'leaders' && !isLeaderPosition(student.position)) return false;
         if (studentUi.quick === 'noRoom' && String(student.room || '').trim()) return false;
         if (studentUi.quick === 'noPlatoon' && String(student.trungDoi || '').trim()) return false;
@@ -1076,10 +1090,22 @@ function renderStudentFilters() {
     ])).sort((a: string, b: string) => Number(a) - Number(b) || a.localeCompare(b, 'vi'));
     if (studentUi.platoon !== 'ALL' && !platoonIds.includes(studentUi.platoon)) studentUi.platoon = 'ALL';
 
+    const squadIds = state.students
+        .filter((student: Student) =>
+            (studentUi.building === 'ALL' || student.building === studentUi.building)
+            && (studentUi.room === 'ALL' || student.room === studentUi.room)
+            && (studentUi.platoon === 'ALL' || String(student.trungDoi || '') === studentUi.platoon)
+        )
+        .map((student: Student) => String(student.tieuDoi || '').trim())
+        .filter(Boolean);
+    if (studentUi.tieuDoi !== 'ALL' && !squadIds.includes(studentUi.tieuDoi)) studentUi.tieuDoi = 'ALL';
+
     elements.studentBuildingFilter.innerHTML = studentFilterOptions(buildings, studentUi.building, 'Tất cả tòa');
     elements.studentRoomFilter.innerHTML = studentFilterOptions(rooms, studentUi.room, 'Tất cả phòng');
     elements.studentPlatoonFilter.innerHTML = studentFilterOptions(platoonIds, studentUi.platoon, 'Tất cả trung đội')
         .replace(/>(\d+)<\/option>/g, '>TĐ $1</option>');
+    elements.studentTieuDoiFilter.innerHTML = studentFilterOptions(squadIds, studentUi.tieuDoi, 'Tất cả tiểu đội')
+        .replace(/>(\d+)<\/option>/g, '>Tiểu đội $1</option>');
 
     const buildingList = document.getElementById('studentBuildingOptions');
     if (buildingList) {
@@ -1088,6 +1114,12 @@ function renderStudentFilters() {
     const platoonList = document.getElementById('studentPlatoonOptions');
     if (platoonList) {
         platoonList.innerHTML = platoonIds.sort((a, b) => Number(a) - Number(b)).map(value => `<option value="${escapeHtml(value)}"></option>`).join('');
+    }
+    const squadList = document.getElementById('studentTieuDoiOptions');
+    if (squadList) {
+        const allSquads = Array.from(new Set<string>(state.students.map((student: Student) => String(student.tieuDoi || '').trim()).filter(Boolean)))
+            .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b, 'vi'));
+        squadList.innerHTML = allSquads.map(value => `<option value="${escapeHtml(value)}"></option>`).join('');
     }
 }
 
@@ -1109,8 +1141,12 @@ function renderStudentRows(students: Student[]): string {
             student.phone ? `SĐT ${student.phone}` : ''
         ].filter(Boolean).map(value => `<span>${escapeHtml(value)}</span>`).join('');
 
+        const selected = studentUi.selected.has(student.id);
         return `
-            <div class="student-row" data-student-id="${escapeHtml(student.id)}">
+            <div class="student-row${selected ? ' selected' : ''}" data-student-id="${escapeHtml(student.id)}">
+                <label class="student-select" title="Chọn sinh viên">
+                    <input type="checkbox" data-student-select="${escapeHtml(student.id)}"${selected ? ' checked' : ''} aria-label="Chọn ${escapeHtml(student.name)}">
+                </label>
                 <div class="student-avatar ${studentPositionClass(student.position)}">${escapeHtml(studentInitials(student.name))}</div>
                 <div class="student-row-main">
                     <div class="student-row-name">
@@ -1128,6 +1164,163 @@ function renderStudentRows(students: Student[]): string {
             </div>
         `;
     }).join('');
+}
+
+function pruneStudentSelection(): void {
+    const ids = new Set(state.students.map((student: Student) => student.id));
+    studentUi.selected.forEach(id => {
+        if (!ids.has(id)) studentUi.selected.delete(id);
+    });
+}
+
+function populateBulkPositionSelect(): void {
+    if (!elements.studentBulkPosition || elements.studentBulkPosition.dataset.ready === '1') return;
+    elements.studentBulkPosition.innerHTML = '<option value="">— Chọn chức vụ —</option>'
+        + (STUDENT_POSITIONS as readonly string[]).map(position =>
+            `<option value="${escapeHtml(position)}">${escapeHtml(position)}</option>`
+        ).join('');
+    elements.studentBulkPosition.dataset.ready = '1';
+}
+
+function renderStudentBulkBar(visibleStudents: Student[]): void {
+    pruneStudentSelection();
+    populateBulkPositionSelect();
+    const count = studentUi.selected.size;
+    if (elements.studentBulkBar) elements.studentBulkBar.hidden = count === 0;
+    if (elements.studentSelectedCount) elements.studentSelectedCount.textContent = String(count);
+    if (elements.btnSelectVisible) {
+        const allVisibleSelected = visibleStudents.length > 0
+            && visibleStudents.every(student => studentUi.selected.has(student.id));
+        elements.btnSelectVisible.textContent = allVisibleSelected ? 'Bỏ chọn đang hiện' : 'Chọn tất cả';
+        elements.btnSelectVisible.disabled = visibleStudents.length === 0;
+        elements.btnSelectVisible.classList.toggle('active', count > 0);
+    }
+}
+
+function toggleVisibleStudentSelection(): void {
+    const visible = getFilteredStudents();
+    if (!visible.length) return;
+    const allVisibleSelected = visible.every(student => studentUi.selected.has(student.id));
+    visible.forEach(student => {
+        if (allVisibleSelected) studentUi.selected.delete(student.id);
+        else studentUi.selected.add(student.id);
+    });
+    renderStudentRoomList();
+}
+
+function clearStudentSelection(): void {
+    studentUi.selected.clear();
+    renderStudentRoomList();
+}
+
+function restoreDeletedStudents(deleted: Student[]): void {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi hoàn tác.');
+        return;
+    }
+    if (!deleted.length) return;
+    const now = new Date().toISOString();
+    const existingIds = new Set(state.students.map((student: Student) => student.id));
+    const existingCodes = new Set(state.students.map((student: Student) => normalizeText(student.code)).filter(Boolean));
+    const restored: Student[] = [];
+    deleted.forEach(student => {
+        if (existingIds.has(student.id)) return;
+        const codeKey = normalizeText(student.code);
+        if (codeKey && existingCodes.has(codeKey)) return;
+        state.students.push({
+            ...student,
+            updatedAt: now,
+            updatedBy: state.graderName || 'Giảng viên'
+        });
+        existingIds.add(student.id);
+        if (codeKey) existingCodes.add(codeKey);
+        restored.push(student);
+    });
+    if (!restored.length) {
+        showToast('Không thể hoàn tác vì sinh viên đã được thêm lại hoặc mã SV đã tồn tại.');
+        return;
+    }
+    const tombstones = { ...(state.studentTombstones || {}) };
+    restored.forEach(student => delete tombstones[student.id]);
+    state.studentTombstones = tombstones;
+    state.students = sortStudents(state.students);
+    state.studentsUpdatedAt = now;
+    logAudit('Hoàn tác xóa', `${restored.length} sinh viên`);
+    saveData();
+    renderStudentUI();
+    render();
+    showToast(`Đã hoàn tác xóa ${restored.length} sinh viên.`);
+}
+
+function applyStudentDeletion(deleted: Student[], action: string, message: string): void {
+    if (!deleted.length) return;
+    const ids = new Set(deleted.map(student => student.id));
+    const now = new Date().toISOString();
+    const previousStudents = state.students.slice();
+    state.students = state.students.filter((student: Student) => !ids.has(student.id));
+    reconcileStudentTombstones(previousStudents, state.students, now);
+    state.studentsUpdatedAt = now;
+    deleted.forEach(student => studentUi.selected.delete(student.id));
+    logAudit(action, deleted.length === 1
+        ? `${deleted[0].name}${deleted[0].room ? ` · P. ${deleted[0].room}` : ''}`
+        : `${deleted.length} sinh viên`);
+    const courseId = state.courseId;
+    saveData();
+    renderStudentUI();
+    render();
+    showToast(message, {
+        label: 'Hoàn tác',
+        onClick: () => {
+            if (state.courseId !== courseId) {
+                showToast('Đã đổi khóa nên không thể hoàn tác thao tác xóa trước đó.');
+                return;
+            }
+            restoreDeletedStudents(deleted);
+        }
+    });
+}
+
+async function deleteSelectedStudents(): Promise<void> {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi xóa sinh viên.');
+        return;
+    }
+    const deleted = state.students.filter((student: Student) => studentUi.selected.has(student.id));
+    if (!deleted.length) return;
+    const ok = await customConfirm(
+        'Xóa Sinh Viên Đã Chọn',
+        `Xóa ${deleted.length} sinh viên đang chọn khỏi danh sách của khóa này?`
+    );
+    if (!ok) return;
+    applyStudentDeletion(deleted, 'Xóa sinh viên hàng loạt', `Đã xóa ${deleted.length} sinh viên.`);
+}
+
+function applyBulkStudentPosition(): void {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi sửa ban cán sự.');
+        return;
+    }
+    const rawPosition = String(elements.studentBulkPosition?.value || '');
+    if (!rawPosition) {
+        showToast('Hãy chọn chức vụ cần gán cho các sinh viên đã chọn.');
+        elements.studentBulkPosition?.focus();
+        return;
+    }
+    const position = normalizePosition(rawPosition);
+    const targets = state.students.filter((student: Student) => studentUi.selected.has(student.id));
+    if (!targets.length) return;
+    const now = new Date().toISOString();
+    targets.forEach(student => {
+        student.position = position;
+        student.updatedAt = now;
+        student.updatedBy = state.graderName || 'Giảng viên';
+    });
+    state.studentsUpdatedAt = now;
+    logAudit('Gán chức vụ hàng loạt', `${targets.length} sinh viên → ${position}`);
+    saveData();
+    renderStudentUI();
+    render();
+    showToast(`Đã gán ${position} cho ${targets.length} sinh viên.`);
 }
 
 function renderStudentRoomList() {
@@ -1159,6 +1352,7 @@ function renderStudentRoomList() {
     elements.studentQuickLeaders?.classList.toggle('active', studentUi.quick === 'leaders');
     elements.studentQuickNoRoom?.classList.toggle('active', studentUi.quick === 'noRoom');
     elements.studentQuickNoPlatoon?.classList.toggle('active', studentUi.quick === 'noPlatoon');
+    renderStudentBulkBar(students);
 
     if (!groups.length) {
         const quickLabel = studentUi.quick === 'leaders' ? 'cán sự'
@@ -1166,7 +1360,7 @@ function renderStudentRoomList() {
             : studentUi.quick === 'noPlatoon' ? 'sinh viên chưa xếp trung đội'
             : 'sinh viên';
         const hint = studentUi.quick === 'leaders'
-            ? 'Hãy sửa chức vụ của sinh viên trong tab Sinh viên hoặc bấm <strong>+ Thêm sinh viên</strong>.'
+            ? 'Hãy sửa chức vụ của sinh viên trong tab Sinh viên hoặc bấm <strong>Gán cán sự</strong>.'
             : 'Bấm <strong>+ Thêm sinh viên</strong> hoặc <strong>Nhập Excel/CSV</strong> để bắt đầu.';
         elements.studentRoomList.innerHTML = `<div class="empty-state">Chưa có ${quickLabel} phù hợp. ${hint}</div>`;
         return;
@@ -1224,7 +1418,7 @@ function renderLeaderList() {
     ).join('');
 
     if (!leaders.length) {
-        elements.leaderList.innerHTML = `<div class="empty-state">Chưa có cán sự. Bấm <strong>+ Thêm cán sự</strong> hoặc sửa chức vụ của sinh viên trong tab Sinh viên.</div>`;
+        elements.leaderList.innerHTML = `<div class="empty-state">Chưa có cán sự. Bấm <strong>Gán cán sự</strong> hoặc sửa chức vụ của sinh viên trong tab Sinh viên.</div>`;
         return;
     }
 
@@ -1241,6 +1435,7 @@ function renderLeaderList() {
                             <div class="leader-row-main">
                                 <div class="student-row-name">${escapeHtml(student.name)}</div>
                                 <div class="student-row-meta">
+                                    ${student.code ? `${escapeHtml(student.code)} · ` : ''}
                                     ${student.trungDoi ? `TĐ ${escapeHtml(student.trungDoi)}` : 'Chưa xếp trung đội'}
                                     ${student.tieuDoi ? ` · Tiểu đội ${escapeHtml(student.tieuDoi)}` : ''}
                                     ${student.room ? ` · P. ${escapeHtml(student.room)}` : ''}
@@ -1250,6 +1445,7 @@ function renderLeaderList() {
                             <div class="student-row-actions">
                                 <button type="button" class="btn-student-action" data-leader-action="edit" data-student-id="${escapeHtml(student.id)}">Sửa</button>
                                 <button type="button" class="btn-student-action" data-leader-action="clear" data-student-id="${escapeHtml(student.id)}">Bỏ chức vụ</button>
+                                <button type="button" class="btn-student-action danger" data-leader-action="delete" data-student-id="${escapeHtml(student.id)}">Xóa</button>
                             </div>
                         </div>
                     `).join('')}
@@ -1270,10 +1466,12 @@ function renderStudentUI() {
 }
 
 function openStudentsModal(options: { platoonId?: string; tab?: 'students' | 'leaders' } = {}) {
+    studentUi.selected.clear();
     if (options.platoonId) {
         studentUi.platoon = String(options.platoonId);
         studentUi.building = 'ALL';
         studentUi.room = 'ALL';
+        studentUi.tieuDoi = 'ALL';
         studentUi.query = '';
         studentUi.quick = 'all';
         if (elements.studentSearch) elements.studentSearch.value = '';
@@ -1310,12 +1508,15 @@ function openStudentEditor(student: Student | null = null, presetPosition = 'H�
     elements.studentStatus.className = 'student-status';
     elements.studentEditor.hidden = false;
     elements.studentEditorTitle.textContent = student ? 'Sửa thông tin sinh viên' : 'Thêm sinh viên';
+    if (elements.btnSaveStudentNext) {
+        elements.btnSaveStudentNext.textContent = student ? 'Lưu & Thêm mới' : 'Lưu & Thêm tiếp';
+    }
     elements.studentEditId.value = student ? student.id : '';
     elements.studentName.value = student ? student.name : '';
     elements.studentCode.value = student ? student.code : '';
     elements.studentBuilding.value = student ? student.building : (studentUi.building !== 'ALL' ? studentUi.building : '');
     elements.studentRoom.value = student ? student.room : (studentUi.room !== 'ALL' ? studentUi.room : '');
-    elements.studentTieuDoi.value = student ? student.tieuDoi : '';
+    elements.studentTieuDoi.value = student ? student.tieuDoi : (studentUi.tieuDoi !== 'ALL' ? studentUi.tieuDoi : '');
     elements.studentTrungDoi.value = student ? student.trungDoi : (studentUi.platoon !== 'ALL' ? studentUi.platoon : '');
     elements.studentPhone.value = student ? student.phone : '';
     elements.studentNote.value = student ? student.note : '';
@@ -1359,7 +1560,7 @@ function reconcileStudentTombstones(previous: Student[], next: Student[], at: st
     state.studentTombstones = tombstones;
 }
 
-function saveStudentFromForm() {
+function saveStudentFromForm(continueAdding = false) {
     if (state.locked) {
         showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi sửa danh sách sinh viên.');
         return;
@@ -1376,11 +1577,25 @@ function saveStudentFromForm() {
     const now = new Date().toISOString();
     const id = String(elements.studentEditId.value || '');
     const existing = state.students.find((student: Student) => student.id === id);
+    const code = String(elements.studentCode.value || '').trim();
+    if (code) {
+        const duplicate = state.students.find((student: Student) =>
+            student.id !== id && normalizeText(student.code) === normalizeText(code)
+        );
+        if (duplicate) {
+            elements.studentStatus.textContent = `Mã SV ${code} đã thuộc về ${duplicate.name}${duplicate.room ? ` (P. ${duplicate.room})` : ''}. Hãy kiểm tra lại.`;
+            elements.studentStatus.className = 'student-status error';
+            elements.studentCode.focus();
+            elements.studentCode.select();
+            return;
+        }
+    }
+
     const student: Student = {
         ...(existing || {}),
         id: existing ? existing.id : `sv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
         name,
-        code: String(elements.studentCode.value || '').trim(),
+        code,
         building: String(elements.studentBuilding.value || '').trim(),
         room: String(elements.studentRoom.value || '').trim(),
         tieuDoi: String(elements.studentTieuDoi.value || '').trim(),
@@ -1413,10 +1628,23 @@ function saveStudentFromForm() {
     reconcileStudentTombstones(previousStudents, state.students, now);
     state.studentsUpdatedAt = now;
     saveData();
-    closeStudentEditor();
     renderStudentUI();
     render();
-    showToast(existing ? 'Đã cập nhật sinh viên.' : 'Đã thêm sinh viên.');
+    if (continueAdding) {
+        openStudentEditor(null, student.position);
+        elements.studentBuilding.value = student.building;
+        elements.studentRoom.value = student.room;
+        elements.studentTrungDoi.value = student.trungDoi;
+        elements.studentTieuDoi.value = student.tieuDoi;
+        elements.studentStatus.textContent = existing
+            ? 'Đã lưu thay đổi. Nhập sinh viên tiếp theo.'
+            : 'Đã thêm sinh viên. Nhập tiếp sinh viên kế tiếp.';
+        elements.studentStatus.className = 'student-status ok';
+        showToast(existing ? 'Đã cập nhật sinh viên.' : 'Đã thêm sinh viên.');
+    } else {
+        closeStudentEditor();
+        showToast(existing ? 'Đã cập nhật sinh viên.' : 'Đã thêm sinh viên.');
+    }
 }
 
 async function deleteStudent(id: string) {
@@ -1429,16 +1657,7 @@ async function deleteStudent(id: string) {
     const ok = await customConfirm('Xóa Sinh Viên', `Xóa ${student.name} khỏi danh sách của khóa này?`);
     if (!ok) return;
 
-    const now = new Date().toISOString();
-    const previousStudents = state.students.slice();
-    state.students = state.students.filter((entry: Student) => entry.id !== id);
-    reconcileStudentTombstones(previousStudents, state.students, now);
-    state.studentsUpdatedAt = now;
-    logAudit('Xóa sinh viên', `${student.name}${student.room ? ` · P. ${student.room}` : ''}`);
-    saveData();
-    renderStudentUI();
-    render();
-    showToast('Đã xóa sinh viên.');
+    applyStudentDeletion([student], 'Xóa sinh viên', 'Đã xóa sinh viên.');
 }
 
 function clearLeaderPosition(id: string) {
@@ -3965,15 +4184,43 @@ async function applySheetImport() {
 // ============================================================
 // DIALOG & TOAST
 // ============================================================
-function showToast(message) {
+function hideToast() {
+    if (elements.toastMsg._hideTimer) {
+        clearTimeout(elements.toastMsg._hideTimer);
+        elements.toastMsg._hideTimer = null;
+    }
+    elements.toastMsg.classList.remove('show');
+    if (elements.toastAction) {
+        elements.toastAction.hidden = true;
+        elements.toastAction.onclick = null;
+    }
+}
+
+function showToast(message: string, action?: { label: string; onClick: () => void }) {
     if (elements.toastMsg._hideTimer) {
         clearTimeout(elements.toastMsg._hideTimer);
     }
-    elements.toastMsg.textContent = message;
+    if (elements.toastText) elements.toastText.textContent = message;
+    else elements.toastMsg.textContent = message;
+    if (elements.toastAction) {
+        elements.toastAction.hidden = !action;
+        elements.toastAction.textContent = action ? action.label : '';
+        elements.toastAction.onclick = action
+            ? () => {
+                hideToast();
+                action.onClick();
+            }
+            : null;
+    }
     elements.toastMsg.classList.add('show');
     elements.toastMsg._hideTimer = setTimeout(() => {
         elements.toastMsg.classList.remove('show');
-    }, 2600);
+        if (elements.toastAction) {
+            elements.toastAction.hidden = true;
+            elements.toastAction.onclick = null;
+        }
+        elements.toastMsg._hideTimer = null;
+    }, action ? 6500 : 2600);
 }
 
 function customConfirm(title: string, message: string): Promise<boolean> {
@@ -4256,23 +4503,71 @@ function setupEventListeners() {
     elements.studentBuildingFilter.addEventListener('change', () => {
         studentUi.building = elements.studentBuildingFilter.value;
         studentUi.room = 'ALL';
+        studentUi.tieuDoi = 'ALL';
         renderStudentUI();
     });
     elements.studentRoomFilter.addEventListener('change', () => {
         studentUi.room = elements.studentRoomFilter.value;
+        studentUi.tieuDoi = 'ALL';
         renderStudentUI();
     });
     elements.studentPlatoonFilter.addEventListener('change', () => {
         studentUi.platoon = elements.studentPlatoonFilter.value;
+        studentUi.tieuDoi = 'ALL';
+        renderStudentUI();
+    });
+    elements.studentTieuDoiFilter.addEventListener('change', () => {
+        studentUi.tieuDoi = elements.studentTieuDoiFilter.value;
         renderStudentUI();
     });
     elements.btnAddStudent.addEventListener('click', () => openStudentEditor(null, 'Học viên'));
-    elements.btnAddLeader.addEventListener('click', () => {
+    elements.btnAddLeader.addEventListener('click', async () => {
         setStudentTab('leaders');
-        openStudentEditor(null, 'Tiểu đội trưởng');
+        const query = await customPrompt(
+            'Gán Chức Vụ Cán Sự',
+            'Nhập tên hoặc mã sinh viên cần gán chức vụ. Nếu có nhiều kết quả, ứng dụng sẽ mở danh sách để chọn.'
+        );
+        if (!query) return;
+        const normalized = normalizeText(query);
+        const exactCode = state.students.find((student: Student) => normalizeText(student.code) === normalized);
+        const matches = exactCode
+            ? [exactCode]
+            : state.students.filter((student: Student) =>
+                normalizeText(student.name).includes(normalized) || normalizeText(student.code).includes(normalized)
+            );
+        if (matches.length === 1) {
+            const student = matches[0];
+            openStudentEditor(student);
+            if (!isLeaderPosition(student.position)) populateStudentPositionSelect('Tiểu đội trưởng');
+            elements.studentStatus.textContent = 'Chọn chức vụ cán sự rồi bấm Lưu sinh viên.';
+            elements.studentStatus.className = 'student-status ok';
+            setTimeout(() => elements.studentPosition.focus(), 120);
+            return;
+        }
+        if (matches.length > 1) {
+            setStudentTab('students');
+            studentUi.query = query;
+            studentUi.quick = 'all';
+            studentUi.building = 'ALL';
+            studentUi.room = 'ALL';
+            studentUi.platoon = 'ALL';
+            studentUi.tieuDoi = 'ALL';
+            elements.studentSearch.value = query;
+            renderStudentUI();
+            showToast(`Tìm thấy ${matches.length} sinh viên. Bấm Sửa để gán chức vụ.`);
+            return;
+        }
+        showToast('Không tìm thấy sinh viên phù hợp. Hãy thử nhập mã SV hoặc tên khác.');
     });
     elements.btnCancelStudent.addEventListener('click', closeStudentEditor);
-    elements.btnSaveStudent.addEventListener('click', saveStudentFromForm);
+    elements.btnSaveStudent.addEventListener('click', () => saveStudentFromForm(false));
+    elements.btnSaveStudentNext.addEventListener('click', () => saveStudentFromForm(true));
+    elements.btnSelectVisible.addEventListener('click', toggleVisibleStudentSelection);
+    elements.btnBulkClear.addEventListener('click', clearStudentSelection);
+    elements.btnBulkDelete.addEventListener('click', () => {
+        void deleteSelectedStudents();
+    });
+    elements.btnBulkAssign.addEventListener('click', applyBulkStudentPosition);
     elements.btnImportStudents.addEventListener('click', () => elements.studentFileInput.click());
     elements.studentFileInput.addEventListener('change', async event => {
         const input = event.target as HTMLInputElement;
@@ -4282,6 +4577,15 @@ function setupEventListeners() {
     });
     elements.btnExportStudents.addEventListener('click', () => exportStudentCSV(false));
     elements.btnExportLeaders.addEventListener('click', () => exportStudentCSV(true));
+    elements.studentRoomList.addEventListener('change', event => {
+        const checkbox = (event.target as HTMLElement).closest('[data-student-select]') as HTMLInputElement | null;
+        if (!checkbox) return;
+        const id = checkbox.dataset.studentSelect || '';
+        if (!id) return;
+        if (checkbox.checked) studentUi.selected.add(id);
+        else studentUi.selected.delete(id);
+        renderStudentRoomList();
+    });
     elements.studentRoomList.addEventListener('click', async event => {
         const button = (event.target as HTMLElement).closest('[data-student-action]') as HTMLElement | null;
         if (!button) return;
@@ -4302,6 +4606,8 @@ function setupEventListeners() {
             if (student) openStudentEditor(student);
         } else if (button.dataset.leaderAction === 'clear') {
             clearLeaderPosition(id);
+        } else if (button.dataset.leaderAction === 'delete') {
+            await deleteStudent(id);
         }
     });
 

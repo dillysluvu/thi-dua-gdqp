@@ -24,11 +24,13 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 
 - Mở menu **⋮ → Danh Sách Sinh Viên & Cán Sự**.
 - Nhập danh sách từ Excel/CSV với các cột họ tên, mã SV, tòa, phòng, tiểu đội, trung đội, chức vụ, số điện thoại, ghi chú; giữ thêm lớp, trường, ngày sinh, nơi sinh, giới tính, dân tộc, CCCD nếu có.
-- Hỗ trợ mẫu **biên chế nhiều tiểu đội** của nhà trường: tự đọc từng khối “Danh sách biên chế tiểu đội”, ghép họ tên từ hai cột, nhận trung đội/tiểu đội/phòng/tòa và tự đánh số tiểu đội 1–3 trong từng trung đội.
+- Hỗ trợ mẫu **biên chế nhiều tiểu đội** của nhà trường: tự đọc từng khối “Danh sách biên chế tiểu đội”, ghép họ tên từ hai cột, nhận trung đội/tiểu đội/phòng/tòa và **giữ nguyên số tiểu đội gốc** liên tục (1, 2, 3, ... 168), không reset về 1–3 trong từng trung đội.
 - Có thể chọn **nhiều file .xls/.xlsx cùng lúc** để nhập gộp (ví dụ file ĐHKT và file HVMM).
-- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, trung đội và tìm kiếm không dấu.
-- Thêm, sửa, xóa sinh viên trực tiếp trên giao diện; mở rộng phần thông tin bổ sung để sửa lớp, ngày sinh, CCCD...
-- Gán chức vụ **Tiểu đội trưởng**, **Trung đội trưởng**, **Phó đại đội trưởng**; tab **Ban cán sự** tổng hợp riêng để quản lý.
+- Nếu đã nhập danh sách bằng bản 3.2 trở về trước, hãy nhập lại file biên chế ở chế độ **Cập nhật** một lần để thay số tiểu đội cũ (1–3 trong từng trung đội) bằng số tiểu đội gốc.
+- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, trung đội, tiểu đội và tìm kiếm không dấu.
+- Thêm, sửa, xóa sinh viên trực tiếp trên giao diện; kiểm tra trùng mã SV; **Lưu & Thêm tiếp** để nhập nhanh nhiều sinh viên; xóa có xác nhận và **Hoàn tác**.
+- Chọn nhiều sinh viên bằng checkbox để **xóa hàng loạt** hoặc **gán chức vụ hàng loạt**; mở rộng phần thông tin bổ sung để sửa lớp, ngày sinh, CCCD...
+- Gán chức vụ **Tiểu đội trưởng**, **Trung đội trưởng**, **Phó đại đội trưởng**; tab **Ban cán sự** có nút **Gán cán sự** để tìm sinh viên theo tên/mã và gán chức vụ, tránh tạo trùng sinh viên.
 - Bấm **SV: n** trên thẻ hoặc bảng điểm để mở đúng danh sách sinh viên của trung đội đó.
 - Xuất danh sách sinh viên hoặc ban cán sự ra CSV.
 
@@ -95,7 +97,7 @@ Vào menu **⋮ → Danh Sách Sinh Viên & Cán Sự → Nhập Excel/CSV**.
   - dòng `Danh sách biên chế tiểu đội` và `Trung đội`;
   - họ tên ghép từ cột họ đệm + cột tên;
   - phòng/tòa từ dòng `Phòng ở` và cột phòng của từng sinh viên;
-  - tiểu đội gốc (ví dụ 46, 47, 48) được đổi thành tiểu đội 1, 2, 3 trong trung đội;
+  - tiểu đội gốc được giữ nguyên (ví dụ 46, 47, 48; hoặc 1, 2, 3, ... 12, ... 168), không đánh số lại theo từng trung đội;
   - trưởng nếu file có ghi tên ở dòng `Trung đội trưởng` / `Tiểu đội trưởng`.
 - Có thể xuất CSV để chỉnh sửa hàng loạt rồi nhập lại. File CSV có thêm các cột thông tin phụ; hãy giữ nguyên thứ tự cột khi nhập lại.
 

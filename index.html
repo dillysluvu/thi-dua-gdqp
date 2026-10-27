@@ -512,7 +512,7 @@
                         </div>
                         <div class="field">
                             <label for="studentTieuDoi">Tiểu đội</label>
-                            <input type="text" id="studentTieuDoi" maxlength="10" placeholder="1">
+                            <input type="text" id="studentTieuDoi" maxlength="10" placeholder="VD: 46" list="studentTieuDoiOptions">
                         </div>
                         <div class="field">
                             <label for="studentTrungDoi">Trung đội</label>
@@ -568,6 +568,7 @@
                         <span class="student-status" id="studentStatus"></span>
                         <span class="spacer"></span>
                         <button type="button" class="btn-modal secondary" id="btnCancelStudent">Hủy</button>
+                        <button type="button" class="btn-modal secondary" id="btnSaveStudentNext">Lưu &amp; Thêm tiếp</button>
                         <button type="button" class="btn-modal primary" id="btnSaveStudent">Lưu sinh viên</button>
                     </div>
                 </div>
@@ -582,6 +583,7 @@
                         <select id="studentBuildingFilter" aria-label="Lọc theo tòa"></select>
                         <select id="studentRoomFilter" aria-label="Lọc theo phòng"></select>
                         <select id="studentPlatoonFilter" aria-label="Lọc theo trung đội"></select>
+                        <select id="studentTieuDoiFilter" aria-label="Lọc theo tiểu đội"></select>
                         <select id="studentImportMode" aria-label="Cách nhập danh sách">
                             <option value="merge">Nhập: cập nhật</option>
                             <option value="replace">Nhập: thay thế</option>
@@ -599,24 +601,32 @@
                             <button type="button" data-student-quick="noRoom" id="studentQuickNoRoom">Chưa xếp phòng</button>
                             <button type="button" data-student-quick="noPlatoon" id="studentQuickNoPlatoon">Chưa xếp TĐ</button>
                         </div>
+                        <button type="button" class="student-select-visible" id="btnSelectVisible">Chọn tất cả</button>
                     </div>
                     <details class="student-import-help">
                         <summary>Mẫu Excel biên chế nhiều tiểu đội được hỗ trợ</summary>
                         <div>
                             Có thể chọn nhiều file cùng lúc. Web tự đọc các khối
-                            <strong>“Danh sách biên chế tiểu đội”</strong>, lấy trung đội, tiểu đội, phòng ở,
-                            họ tên ghép từ hai cột, mã SV, lớp, ngày sinh, CCCD... Nếu file có sheet
+                            <strong>“Danh sách biên chế tiểu đội”</strong>, lấy trung đội, tiểu đội gốc (1, 2, 3, ... 168),
+                            phòng ở, họ tên ghép từ hai cột, mã SV, lớp, ngày sinh, CCCD... Nếu file có sheet
                             <strong>“Nha o”</strong>, hãy nhập sheet đó ở mục nhập bảng trung đội để cập nhật danh sách 56 trung đội.
                         </div>
                     </details>
                     <div class="student-summary" id="studentSummary"></div>
+                    <div class="student-bulk-bar" id="studentBulkBar" hidden>
+                        <span class="student-bulk-count"><strong id="studentSelectedCount">0</strong> sinh viên đã chọn</span>
+                        <select id="studentBulkPosition" aria-label="Chức vụ cần gán"></select>
+                        <button type="button" class="btn-student-bulk primary" id="btnBulkAssign">Gán chức vụ</button>
+                        <button type="button" class="btn-student-bulk danger" id="btnBulkDelete">Xóa đã chọn</button>
+                        <button type="button" class="btn-student-bulk ghost" id="btnBulkClear">Bỏ chọn</button>
+                    </div>
                     <div class="student-list-status" id="studentListStatus" hidden></div>
                     <div class="student-room-list" id="studentRoomList"></div>
                 </div>
 
                 <div id="leaderListPanel" hidden>
                     <div class="student-toolbar">
-                        <button type="button" class="btn-modal primary" id="btnAddLeader">+ Thêm cán sự</button>
+                        <button type="button" class="btn-modal primary" id="btnAddLeader">Gán cán sự</button>
                         <button type="button" class="btn-modal ghost" id="btnExportLeaders">Xuất CSV cán sự</button>
                     </div>
                     <div class="student-summary" id="leaderSummary"></div>
@@ -633,6 +643,7 @@
 
     <datalist id="studentBuildingOptions"></datalist>
     <datalist id="studentPlatoonOptions"></datalist>
+    <datalist id="studentTieuDoiOptions"></datalist>
 
     <!-- BACKUP / RESTORE MODAL -->
     <div class="modal-overlay" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
@@ -939,7 +950,7 @@ create policy "course_sync_all" on public.course_sync
                     <li><strong>Tìm nhanh:</strong> gõ số trung đội (vd: <code>15</code>), tên tòa (vd: <code>C7</code>), số phòng hoặc nội dung ghi chú.</li>
                     <li><strong>Dữ liệu tự lưu:</strong> mọi thay đổi được lưu vào trình duyệt trên thiết bị này, theo từng khóa học. Hãy xuất file <strong>.json</strong> định kỳ để sao lưu hoặc chuyển sang máy khác.</li>
                     <li><strong>Nhập Excel / Google Sheets:</strong> menu ⋮ → <strong>Nhập Excel / Google Sheets</strong>. Hỗ trợ file <strong>.xls, .xlsx, .csv, .tsv</strong> hoặc dán trực tiếp từ Excel/Sheets; có xem trước trước khi áp dụng.</li>
-                    <li><strong>Danh sách sinh viên &amp; cán sự:</strong> menu ⋮ → <strong>Danh Sách Sinh Viên &amp; Cán Sự</strong>. Có thể chọn nhiều file Excel/CSV, nhập mẫu <strong>biên chế nhiều tiểu đội</strong>, thêm/sửa/xóa, nhóm theo phòng hoặc trung đội, lọc nhanh cán sự/chưa xếp phòng và gán chức vụ Tiểu đội trưởng, Trung đội trưởng, Phó đại đội trưởng. Bấm <strong>SV: n</strong> trên thẻ để mở đúng trung đội.</li>
+                    <li><strong>Danh sách sinh viên &amp; cán sự:</strong> menu ⋮ → <strong>Danh Sách Sinh Viên &amp; Cán Sự</strong>. Có thể chọn nhiều file Excel/CSV, nhập mẫu <strong>biên chế nhiều tiểu đội</strong> và giữ số tiểu đội gốc (1, 2, 3, ... 168), thêm/sửa/xóa, <strong>Lưu &amp; Thêm tiếp</strong>, chọn nhiều sinh viên để xóa hoặc gán chức vụ hàng loạt, hoàn tác xóa, nhóm theo phòng hoặc trung đội, lọc theo tòa/phòng/trung đội/tiểu đội. Bấm <strong>SV: n</strong> trên thẻ để mở đúng trung đội.</li>
                     <li><strong>Cộng tác nhóm:</strong> menu ⋮ → <strong>Cộng Tác Nhóm</strong>. Cần cấu hình Supabase trước. Nhiều người có thể cùng sửa; thay đổi được báo qua Realtime và vẫn tự đồng bộ mỗi 15 giây nếu Realtime không khả dụng.</li>
                     <li><strong>Khôi phục / chuyển máy:</strong> mở menu ⋮ → <strong>Nhập File Sao Lưu (.json)</strong>. Dữ liệu cũ sẽ được thay thế sau khi xác nhận.</li>
                     <li><strong>In báo cáo:</strong> chọn ngày trên màn hình chính, sau đó menu ⋮ → <strong>In / Xuất PDF Báo Cáo</strong>. Trong hộp thoại in, chọn “Save as PDF” nếu cần gửi file.</li>
@@ -987,7 +998,10 @@ create policy "course_sync_all" on public.course_sync
     </div>
 
     <!-- TOAST NOTIFICATION -->
-    <div class="toast-msg" id="toastMsg">Thao tác thành công</div>
+    <div class="toast-msg" id="toastMsg" role="status" aria-live="polite">
+        <span id="toastText">Thao tác thành công</span>
+        <button type="button" class="toast-action" id="toastAction" hidden>Hoàn tác</button>
+    </div>
 
     <!-- PRINT VIEW (EXACT A4 PAPER FORM) -->
     <div class="print-only print-container">

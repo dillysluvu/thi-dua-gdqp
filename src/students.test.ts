@@ -89,7 +89,7 @@ describe('students', () => {
     const byCode = new Map(result.students.map(student => [student.code, student]));
     expect(byCode.get('SV01')?.name).toBe('Nguyễn Văn A');
     expect(byCode.get('SV01')?.trungDoi).toBe('16');
-    expect(byCode.get('SV01')?.tieuDoi).toBe('1');
+    expect(byCode.get('SV01')?.tieuDoi).toBe('46');
     expect(byCode.get('SV01')?.room).toBe('503');
     expect(byCode.get('SV01')?.building).toBe('C7');
     expect(byCode.get('SV01')?.className).toBe('AT23A');
@@ -100,9 +100,28 @@ describe('students', () => {
     expect(byCode.get('SV02')?.position).toBe('Tiểu đội trưởng');
     expect(byCode.get('SV03')?.room).toBe('504');
     expect(byCode.get('SV04')?.room).toBe('504');
-    expect(byCode.get('SV05')?.tieuDoi).toBe('2');
+    expect(byCode.get('SV05')?.tieuDoi).toBe('47');
     expect(byCode.get('SV06')?.trungDoi).toBe('17');
     expect(byCode.get('SV06')?.tieuDoi).toBe('1');
+  });
+
+  it('giữ số tiểu đội liên tục 1–12, không reset theo từng trung đội', () => {
+    const rows: string[][] = [];
+    for (let trungDoi = 1; trungDoi <= 4; trungDoi++) {
+      for (let tieuDoi = (trungDoi - 1) * 3 + 1; tieuDoi <= trungDoi * 3; tieuDoi++) {
+        rows.push(['', '', '', '', ' Danh sách biên chế tiểu đội :', String(tieuDoi), '', '', '', 'Trung đội :', String(trungDoi), '', '', '', '']);
+        rows.push(['', '', '', '', '', '', 'Tiểu đội trưởng :', '', '', 'Phòng ở:', '503', 'C7', '', '']);
+        rows.push(['', 'STT', 'mã tt', 'Mã SV', 'Họ và tên', '', 'Ngày sinh', 'Nơi sinh', 'Lớp', 'Giới tính', 'Trường', '', 'chữ ký', '', '']);
+        rows.push(['', '1', '1', `SV${tieuDoi}`, 'Học viên', String(tieuDoi), '', '', '', '', '', '503 - C7', '', '', '']);
+      }
+    }
+
+    const result = parseStudentRows(rows);
+    expect(result.errors).toEqual([]);
+    expect(result.students).toHaveLength(12);
+    expect(result.students.map(student => student.tieuDoi)).toEqual([
+      '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'
+    ]);
   });
 
   it('nhóm theo trung đội cho giao diện danh sách', () => {
