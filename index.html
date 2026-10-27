@@ -55,6 +55,14 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h10v2H4v-2z"/><path d="M18 13l4 4-4 4v-3h-4v-2h4v-3z"/></svg>
                 Quản Lý Khóa Học
             </button>
+            <button class="dropdown-item" id="btnOpenStudents">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                Danh Sách Sinh Viên &amp; Cán Sự
+            </button>
+            <button class="dropdown-item" id="btnOpenCollab">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.31 0-6 1.79-6 4v2h12v-2c0-2.21-2.69-4-6-4zm7-1a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2c-.55 0-1.06.08-1.54.22A6.7 6.7 0 0 1 20 20h3v-1.5c0-1.93-1.79-3.5-4-3.5zM5 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2c-2.21 0-4 1.57-4 3.5V20h3a6.7 6.7 0 0 1 2.54-4.78A7.1 7.1 0 0 0 5 15z"/></svg>
+                Cộng Tác Nhóm
+            </button>
             <button class="dropdown-item" id="btnOpenBackups">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 1 0 8.94 10.06h-2.02A7 7 0 1 1 13 5v4l5-5-5-5v4z"/><path d="M12 8h2v5h4v2h-6V8z"/></svg>
                 Sao Lưu &amp; Khôi Phục
@@ -249,7 +257,7 @@
 
     <!-- APP FOOTER -->
     <footer class="app-footer no-print">
-        <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">Dữ liệu được lưu tự động trên thiết bị</span><span class="lock-badge" id="lockBadge" hidden>Đã khóa sổ</span></div>
+        <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">Dữ liệu được lưu tự động trên thiết bị</span><span class="lock-badge" id="lockBadge" hidden>Đã khóa sổ</span><button type="button" class="collab-indicator" id="collabIndicator" hidden><span class="collab-indicator-dot"></span><span id="collabIndicatorText">Cộng tác</span></button></div>
         <div>Mẹo: mở menu ⋮ → <strong>Xuất File Sao Lưu (.json)</strong> trước khi đổi máy hoặc bắt đầu khóa mới.</div>
         <div style="margin-top:4px;">Mã nguồn: <a href="https://github.com/dillysluvu/thi-dua-gdqp" target="_blank" rel="noopener" style="color:#0f766e; font-weight:700;">GitHub</a></div>
     </footer>
@@ -465,6 +473,111 @@
         </div>
     </div>
 
+    <!-- STUDENTS / LEADERS MODAL -->
+    <div class="modal-overlay" id="studentsModal" role="dialog" aria-modal="true" aria-labelledby="studentsTitle">
+        <div class="modal-box modal-box-wide">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="studentsTitle">Danh Sách Sinh Viên &amp; Ban Cán Sự</div>
+                    <div class="modal-sub">Quản lý sinh viên theo tòa/phòng, tiểu đội, trung đội và chức vụ. Dữ liệu thuộc khóa đang mở.</div>
+                </div>
+                <button type="button" class="modal-close" id="btnCloseStudents" aria-label="Đóng">✕</button>
+            </div>
+
+            <div class="student-tabs">
+                <button type="button" class="student-tab active" data-student-tab="students" id="tabStudents">Sinh viên</button>
+                <button type="button" class="student-tab" data-student-tab="leaders" id="tabLeaders">Ban cán sự</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="student-editor" id="studentEditor" hidden>
+                    <div class="student-editor-title" id="studentEditorTitle">Thêm sinh viên</div>
+                    <input type="hidden" id="studentEditId">
+                    <div class="student-editor-grid">
+                        <div class="field">
+                            <label for="studentName">Họ tên *</label>
+                            <input type="text" id="studentName" maxlength="80" placeholder="Nguyễn Văn A">
+                        </div>
+                        <div class="field">
+                            <label for="studentCode">Mã sinh viên</label>
+                            <input type="text" id="studentCode" maxlength="30" placeholder="SV001">
+                        </div>
+                        <div class="field">
+                            <label for="studentBuilding">Tòa</label>
+                            <input type="text" id="studentBuilding" maxlength="40" placeholder="Toà C7" list="studentBuildingOptions">
+                        </div>
+                        <div class="field">
+                            <label for="studentRoom">Phòng</label>
+                            <input type="text" id="studentRoom" maxlength="20" placeholder="503">
+                        </div>
+                        <div class="field">
+                            <label for="studentTieuDoi">Tiểu đội</label>
+                            <input type="text" id="studentTieuDoi" maxlength="10" placeholder="1">
+                        </div>
+                        <div class="field">
+                            <label for="studentTrungDoi">Trung đội</label>
+                            <input type="text" id="studentTrungDoi" maxlength="10" placeholder="1" list="studentPlatoonOptions">
+                        </div>
+                        <div class="field">
+                            <label for="studentPosition">Chức vụ</label>
+                            <select id="studentPosition"></select>
+                        </div>
+                        <div class="field">
+                            <label for="studentPhone">SĐT / liên hệ</label>
+                            <input type="text" id="studentPhone" maxlength="30" placeholder="Không bắt buộc">
+                        </div>
+                        <div class="field student-editor-note">
+                            <label for="studentNote">Ghi chú</label>
+                            <input type="text" id="studentNote" maxlength="160" placeholder="Ghi chú thêm">
+                        </div>
+                    </div>
+                    <div class="student-editor-actions">
+                        <span class="student-status" id="studentStatus"></span>
+                        <span class="spacer"></span>
+                        <button type="button" class="btn-modal secondary" id="btnCancelStudent">Hủy</button>
+                        <button type="button" class="btn-modal primary" id="btnSaveStudent">Lưu sinh viên</button>
+                    </div>
+                </div>
+
+                <div id="studentListPanel">
+                    <div class="student-toolbar">
+                        <input type="search" id="studentSearch" placeholder="Tìm tên, mã SV, phòng, tiểu đội...">
+                        <select id="studentBuildingFilter" aria-label="Lọc theo tòa"></select>
+                        <select id="studentRoomFilter" aria-label="Lọc theo phòng"></select>
+                        <select id="studentPlatoonFilter" aria-label="Lọc theo trung đội"></select>
+                        <select id="studentImportMode" aria-label="Cách nhập danh sách">
+                            <option value="merge">Nhập: cập nhật</option>
+                            <option value="replace">Nhập: thay thế</option>
+                        </select>
+                        <button type="button" class="btn-modal primary" id="btnAddStudent">+ Thêm sinh viên</button>
+                        <button type="button" class="btn-modal secondary" id="btnImportStudents">Nhập Excel/CSV</button>
+                        <button type="button" class="btn-modal ghost" id="btnExportStudents">Xuất CSV</button>
+                        <input type="file" id="studentFileInput" accept=".xls,.xlsx,.csv,.tsv,.txt" hidden>
+                    </div>
+                    <div class="student-summary" id="studentSummary"></div>
+                    <div class="student-room-list" id="studentRoomList"></div>
+                </div>
+
+                <div id="leaderListPanel" hidden>
+                    <div class="student-toolbar">
+                        <button type="button" class="btn-modal primary" id="btnAddLeader">+ Thêm cán sự</button>
+                        <button type="button" class="btn-modal ghost" id="btnExportLeaders">Xuất CSV cán sự</button>
+                    </div>
+                    <div class="student-summary" id="leaderSummary"></div>
+                    <div class="leader-list" id="leaderList"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <span class="spacer"></span>
+                <button type="button" class="btn-modal secondary" id="btnCloseStudentsFooter">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <datalist id="studentBuildingOptions"></datalist>
+    <datalist id="studentPlatoonOptions"></datalist>
+
     <!-- BACKUP / RESTORE MODAL -->
     <div class="modal-overlay" id="backupModal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
         <div class="modal-box">
@@ -554,6 +667,68 @@ create policy "course_sync_all" on public.course_sync
             <div class="modal-footer">
                 <span class="spacer"></span>
                 <button type="button" class="btn-modal secondary" id="btnCloseCloudFooter">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- COLLABORATION MODAL -->
+    <div class="modal-overlay" id="collabModal" role="dialog" aria-modal="true" aria-labelledby="collabTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="collabTitle">Cộng Tác Nhóm</div>
+                    <div class="modal-sub">Nhiều người cùng chấm và chỉnh sửa một bảng. Cần cấu hình Supabase trước khi bật.</div>
+                </div>
+                <button type="button" class="modal-close" id="btnCloseCollab" aria-label="Đóng">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="collab-status-card" id="collabStatusCard">
+                    <span class="collab-dot" id="collabDot"></span>
+                    <div class="collab-status-main">
+                        <div class="collab-status-title" id="collabStatusTitle">Chưa bật cộng tác</div>
+                        <div class="collab-status-text" id="collabStatusText">Bật cộng tác để nhiều người cùng chỉnh sửa bảng điểm và danh sách sinh viên.</div>
+                        <div class="collab-last-sync" id="collabLastSync"></div>
+                    </div>
+                    <button type="button" class="btn-modal primary" id="btnCollabToggle">Bật cộng tác</button>
+                </div>
+
+                <div class="collab-config-line" id="collabConfigLine"></div>
+
+                <div class="form-grid" style="margin-top:12px;">
+                    <div class="field">
+                        <label for="collabDisplayName">Tên hiển thị của bạn</label>
+                        <input type="text" id="collabDisplayName" maxlength="40" placeholder="VD: Thầy Nam">
+                        <div class="hint">Tên này chỉ dùng để hiện cho người khác biết ai đang online.</div>
+                    </div>
+                    <div class="field">
+                        <label for="collabSyncId">Mã nhóm đồng bộ</label>
+                        <input type="text" id="collabSyncId" readonly>
+                        <div class="hint">Mọi người phải dùng cùng Supabase URL, bảng và mã nhóm.</div>
+                    </div>
+                </div>
+
+                <div class="collab-presence">
+                    <div class="collab-presence-head">
+                        <span>Đang online</span>
+                        <span class="collab-user-count" id="collabUserCount">0</span>
+                    </div>
+                    <div class="collab-users" id="collabUsers"></div>
+                </div>
+
+                <div class="collab-actions">
+                    <button type="button" class="btn-modal secondary" id="btnCollabSaveName">Lưu tên</button>
+                    <button type="button" class="btn-modal ghost" id="btnCollabPull">Kéo mới nhất</button>
+                    <button type="button" class="btn-modal primary" id="btnCollabPush">Đẩy hiện tại</button>
+                    <button type="button" class="btn-modal ghost" id="btnCollabConfig">Mở cấu hình Supabase</button>
+                </div>
+
+                <div class="settings-tip" style="margin-top:12px;">
+                    <strong>Cách hoạt động:</strong> mỗi lần có người sửa, ứng dụng đẩy bản mới lên Supabase và báo cho các máy khác tải về. Thay đổi ở các trung đội/sinh viên khác nhau được giữ lại; nếu hai người sửa cùng một dòng, bản lưu sau sẽ thắng. Nếu mất realtime, ứng dụng vẫn tự đồng bộ mỗi 15 giây.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="spacer"></span>
+                <button type="button" class="btn-modal secondary" id="btnCloseCollabFooter">Đóng</button>
             </div>
         </div>
     </div>
@@ -706,8 +881,10 @@ create policy "course_sync_all" on public.course_sync
                 <ol class="help-list">
                     <li><strong>Chấm điểm:</strong> bấm <strong>Chấm Điểm</strong> trên thẻ trung đội, dùng các nút trừ nhanh hoặc nhập số. Nút <strong>Lưu &amp; Sang Phòng Tiếp</strong> giúp chấm liên tục không cần đóng bảng.</li>
                     <li><strong>Tìm nhanh:</strong> gõ số trung đội (vd: <code>15</code>), tên tòa (vd: <code>C7</code>), số phòng hoặc nội dung ghi chú.</li>
-                    <li><strong>Dữ liệu tự lưu:</strong> mọi thay đổi được lưu vào trình duyệt trên thiết bị này, theo tên file HTML. Hãy xuất file <strong>.json</strong> định kỳ để sao lưu hoặc chuyển sang máy khác.</li>
+                    <li><strong>Dữ liệu tự lưu:</strong> mọi thay đổi được lưu vào trình duyệt trên thiết bị này, theo từng khóa học. Hãy xuất file <strong>.json</strong> định kỳ để sao lưu hoặc chuyển sang máy khác.</li>
                     <li><strong>Nhập Excel / Google Sheets:</strong> menu ⋮ → <strong>Nhập Excel / Google Sheets</strong>. Hỗ trợ file <strong>.xls, .xlsx, .csv, .tsv</strong> hoặc dán trực tiếp từ Excel/Sheets; có xem trước trước khi áp dụng.</li>
+                    <li><strong>Danh sách sinh viên &amp; cán sự:</strong> menu ⋮ → <strong>Danh Sách Sinh Viên &amp; Cán Sự</strong>. Có thể nhập Excel/CSV, thêm/sửa/xóa, lọc theo phòng/trung đội và gán chức vụ Tiểu đội trưởng, Trung đội trưởng, Phó đại đội trưởng. Bấm <strong>SV: n</strong> trên thẻ để mở đúng trung đội.</li>
+                    <li><strong>Cộng tác nhóm:</strong> menu ⋮ → <strong>Cộng Tác Nhóm</strong>. Cần cấu hình Supabase trước. Nhiều người có thể cùng sửa; thay đổi được báo qua Realtime và vẫn tự đồng bộ mỗi 15 giây nếu Realtime không khả dụng.</li>
                     <li><strong>Khôi phục / chuyển máy:</strong> mở menu ⋮ → <strong>Nhập File Sao Lưu (.json)</strong>. Dữ liệu cũ sẽ được thay thế sau khi xác nhận.</li>
                     <li><strong>In báo cáo:</strong> chọn ngày trên màn hình chính, sau đó menu ⋮ → <strong>In / Xuất PDF Báo Cáo</strong>. Trong hộp thoại in, chọn “Save as PDF” nếu cần gửi file.</li>
                 </ol>

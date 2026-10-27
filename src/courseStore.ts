@@ -1,4 +1,5 @@
 import { DEFAULT_META, PLATOONS_PRESET } from './constants';
+import { normalizeStudents, type Student } from './students';
 
 export interface CourseMeta {
   id: string;
@@ -17,6 +18,11 @@ export interface CourseMeta {
   graderName: string;
   createdAt: string;
   updatedAt: string;
+  settingsUpdatedAt?: string;
+  itemsUpdatedAt?: string;
+  studentsUpdatedAt?: string;
+  studentTombstones?: Record<string, string>;
+  revision?: number;
 }
 
 export interface CourseRecord {
@@ -25,6 +31,7 @@ export interface CourseRecord {
   savedAt: string;
   meta: CourseMeta;
   items: any[];
+  students?: Student[];
   audit: any[];
 }
 
@@ -161,7 +168,12 @@ export function makeDefaultRecord(courseName = DEFAULT_META.courseName): CourseR
       lockedBy: '',
       graderName: 'Giảng viên',
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      settingsUpdatedAt: now,
+      itemsUpdatedAt: now,
+      studentsUpdatedAt: now,
+      studentTombstones: {},
+      revision: 1
     },
     items: PLATOONS_PRESET.map(preset => ({
       id: preset.id,
@@ -176,6 +188,7 @@ export function makeDefaultRecord(courseName = DEFAULT_META.courseName): CourseR
       totalScore: DEFAULT_META.baseScore,
       rank: 1
     })),
+    students: [],
     audit: []
   };
 }
@@ -192,6 +205,11 @@ export function cloneRecord(source: CourseRecord, courseName: string): CourseRec
   copy.meta.lockedBy = '';
   copy.savedAt = now;
   copy.audit = [];
+  copy.meta.settingsUpdatedAt = now;
+  copy.meta.itemsUpdatedAt = now;
+  copy.meta.studentsUpdatedAt = now;
+  copy.meta.studentTombstones = {};
+  copy.meta.revision = 1;
   copy.items = copy.items.map(item => ({
     ...item,
     hocTap: 0,
@@ -200,7 +218,14 @@ export function cloneRecord(source: CourseRecord, courseName: string): CourseRec
     leTiet: 0,
     note: '',
     totalScore: copy.meta.baseScore,
-    rank: 1
+    rank: 1,
+    updatedAt: now,
+    updatedBy: 'Nhân bản khóa'
+  }));
+  copy.students = normalizeStudents(copy.students).map(student => ({
+    ...student,
+    updatedAt: now,
+    updatedBy: 'Nhân bản khóa'
   }));
   return copy;
 }

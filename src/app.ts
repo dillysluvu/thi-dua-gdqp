@@ -22,6 +22,29 @@ import {
 } from './utils';
 import { parseSheetText, parseSheetFile } from './parsers';
 import { recalculateScores, calculateScoreStats } from './scoring';
+import { mergeCourseRecords } from './merge';
+import {
+    CollabSession,
+    loadCollabSettings,
+    saveCollabSettings,
+    type CollabStatus,
+    type CollabUser
+} from './collab';
+import {
+    normalizeStudents,
+    normalizeStudentTombstones,
+    sortStudents,
+    groupStudentsByRoom,
+    parseStudentRows,
+    mergeStudentLists,
+    studentCSV,
+    normalizePosition,
+    countStudentsForPlatoon,
+    isLeaderPosition,
+    LEADER_POSITIONS,
+    STUDENT_POSITIONS,
+    type Student
+} from './students';
 import {
   createAuditEntry,
   appendAuditEntry,
@@ -113,8 +136,18 @@ const state: any = {
     lockedBy: '',
     graderName: 'Giảng viên',
     audit: [] as AuditEntry[],
+    students: [] as Student[],
+    studentsUpdatedAt: '',
+    studentTombstones: {} as Record<string, string>,
+    itemsUpdatedAt: '',
+    settingsUpdatedAt: '',
+    revision: 1,
+    applyingRemote: false,
     drawerOriginal: null as any,
-    cloudConfig: null as CloudConfig | null
+    cloudConfig: null as CloudConfig | null,
+    collabSettings: { enabled: false, displayName: '' },
+    collabSession: null as CollabSession | null,
+    collabStatus: null as CollabStatus | null
 };
 
 // DOM Elements
@@ -178,6 +211,46 @@ const elements: Record<string, any> = {
     btnCreateCourse: document.getElementById('btnCreateCourse'),
     btnCloneCourse: document.getElementById('btnCloneCourse'),
 
+    // Students & leaders
+    studentsModal: document.getElementById('studentsModal'),
+    studentEditor: document.getElementById('studentEditor'),
+    studentEditorTitle: document.getElementById('studentEditorTitle'),
+    studentEditId: document.getElementById('studentEditId'),
+    studentName: document.getElementById('studentName'),
+    studentCode: document.getElementById('studentCode'),
+    studentBuilding: document.getElementById('studentBuilding'),
+    studentRoom: document.getElementById('studentRoom'),
+    studentTieuDoi: document.getElementById('studentTieuDoi'),
+    studentTrungDoi: document.getElementById('studentTrungDoi'),
+    studentPosition: document.getElementById('studentPosition'),
+    studentPhone: document.getElementById('studentPhone'),
+    studentNote: document.getElementById('studentNote'),
+    studentStatus: document.getElementById('studentStatus'),
+    studentSearch: document.getElementById('studentSearch'),
+    studentBuildingFilter: document.getElementById('studentBuildingFilter'),
+    studentRoomFilter: document.getElementById('studentRoomFilter'),
+    studentPlatoonFilter: document.getElementById('studentPlatoonFilter'),
+    studentImportMode: document.getElementById('studentImportMode'),
+    studentFileInput: document.getElementById('studentFileInput'),
+    studentSummary: document.getElementById('studentSummary'),
+    studentRoomList: document.getElementById('studentRoomList'),
+    leaderListPanel: document.getElementById('leaderListPanel'),
+    studentListPanel: document.getElementById('studentListPanel'),
+    leaderSummary: document.getElementById('leaderSummary'),
+    leaderList: document.getElementById('leaderList'),
+    tabStudents: document.getElementById('tabStudents'),
+    tabLeaders: document.getElementById('tabLeaders'),
+    btnOpenStudents: document.getElementById('btnOpenStudents'),
+    btnCloseStudents: document.getElementById('btnCloseStudents'),
+    btnCloseStudentsFooter: document.getElementById('btnCloseStudentsFooter'),
+    btnAddStudent: document.getElementById('btnAddStudent'),
+    btnImportStudents: document.getElementById('btnImportStudents'),
+    btnExportStudents: document.getElementById('btnExportStudents'),
+    btnAddLeader: document.getElementById('btnAddLeader'),
+    btnExportLeaders: document.getElementById('btnExportLeaders'),
+    btnCancelStudent: document.getElementById('btnCancelStudent'),
+    btnSaveStudent: document.getElementById('btnSaveStudent'),
+
     // Backups
     backupModal: document.getElementById('backupModal'),
     backupListEl: document.getElementById('backupList'),
@@ -201,6 +274,29 @@ const elements: Record<string, any> = {
     btnCloudTest: document.getElementById('btnCloudTest'),
     btnCloudPush: document.getElementById('btnCloudPush'),
     btnCloudPull: document.getElementById('btnCloudPull'),
+
+    // Collaboration
+    collabModal: document.getElementById('collabModal'),
+    collabStatusCard: document.getElementById('collabStatusCard'),
+    collabDot: document.getElementById('collabDot'),
+    collabStatusTitle: document.getElementById('collabStatusTitle'),
+    collabStatusText: document.getElementById('collabStatusText'),
+    collabLastSync: document.getElementById('collabLastSync'),
+    collabConfigLine: document.getElementById('collabConfigLine'),
+    collabDisplayName: document.getElementById('collabDisplayName'),
+    collabSyncId: document.getElementById('collabSyncId'),
+    collabUserCount: document.getElementById('collabUserCount'),
+    collabUsers: document.getElementById('collabUsers'),
+    btnOpenCollab: document.getElementById('btnOpenCollab'),
+    btnCloseCollab: document.getElementById('btnCloseCollab'),
+    btnCloseCollabFooter: document.getElementById('btnCloseCollabFooter'),
+    btnCollabToggle: document.getElementById('btnCollabToggle'),
+    btnCollabSaveName: document.getElementById('btnCollabSaveName'),
+    btnCollabPull: document.getElementById('btnCollabPull'),
+    btnCollabPush: document.getElementById('btnCollabPush'),
+    btnCollabConfig: document.getElementById('btnCollabConfig'),
+    collabIndicator: document.getElementById('collabIndicator'),
+    collabIndicatorText: document.getElementById('collabIndicatorText'),
 
     // Audit / lock
     auditModal: document.getElementById('auditModal'),
@@ -354,7 +450,9 @@ function normalizeItem(raw, preset = null) {
         leTiet: round1(toNumber(raw.leTiet)),
         note: String(raw.note !== undefined && raw.note !== null ? raw.note : '').trim(),
         totalScore: 0,
-        rank: 1
+        rank: 1,
+        updatedAt: String(raw.updatedAt || ''),
+        updatedBy: String(raw.updatedBy || '')
     };
 }
 
@@ -452,9 +550,15 @@ function createRecordFromLegacy(payload: any): CourseRecord {
             lockedBy: '',
             graderName: 'Giảng viên',
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            settingsUpdatedAt: now,
+            itemsUpdatedAt: now,
+            studentsUpdatedAt: now,
+            studentTombstones: {},
+            revision: 1
         },
         items: items.length ? items : createDefaultItems(),
+        students: normalizeStudents(payload && payload.students),
         audit: []
     };
 }
@@ -468,6 +572,12 @@ function applyCourseRecord(record: CourseRecord): void {
     state.graderName = record.meta.graderName || 'Giảng viên';
     applyMetaValues(record.meta);
     state.audit = Array.isArray(record.audit) ? record.audit.slice(-1000) : [];
+    state.students = sortStudents(normalizeStudents(record.students));
+    state.settingsUpdatedAt = record.meta.settingsUpdatedAt || record.meta.updatedAt || record.savedAt || new Date().toISOString();
+    state.itemsUpdatedAt = record.meta.itemsUpdatedAt || record.meta.updatedAt || record.savedAt || new Date().toISOString();
+    state.studentsUpdatedAt = record.meta.studentsUpdatedAt || record.meta.updatedAt || record.savedAt || new Date().toISOString();
+    state.studentTombstones = normalizeStudentTombstones(record.meta.studentTombstones);
+    state.revision = Number(record.meta.revision) || 1;
 
     const items = normalizeItems(record.items);
     state.items = items.length ? items : createDefaultItems();
@@ -532,9 +642,15 @@ function buildPayload(): CourseRecord {
             lockedBy: state.lockedBy || '',
             graderName: state.graderName || 'Giảng viên',
             createdAt: state.createdAt || now,
-            updatedAt: now
+            updatedAt: now,
+            settingsUpdatedAt: state.settingsUpdatedAt || now,
+            itemsUpdatedAt: state.itemsUpdatedAt || now,
+            studentsUpdatedAt: state.studentsUpdatedAt || now,
+            studentTombstones: state.studentTombstones || {},
+            revision: Number(state.revision || 1)
         },
         items: state.items,
+        students: state.students,
         audit: Array.isArray(state.audit) ? state.audit.slice(-1000) : []
     };
 }
@@ -574,7 +690,9 @@ function saveData() {
     setCurrentCourseId(state.courseId);
     updateSaveStatus(true);
     maybeAutoSnapshot(payload);
-    if (state.cloudConfig) {
+    if (state.collabSession && state.collabSettings.enabled) {
+        if (!state.applyingRemote) state.collabSession.schedulePush(payload);
+    } else if (state.cloudConfig && !state.applyingRemote) {
         scheduleCloudPush(payload, state.cloudConfig, status => {
             if (!status.ok && elements.cloudModal && elements.cloudModal.classList.contains('open')) {
                 setCloudStatus(status);
@@ -686,6 +804,14 @@ function closeCourseModal() {
 }
 
 function activateCourseRecord(record: CourseRecord) {
+    if (state.collabSession) {
+        const oldSession = state.collabSession;
+        const oldPayload = buildPayload();
+        state.collabSession = null;
+        void oldSession.pushNow(oldPayload);
+        oldSession.stop();
+        state.collabStatus = null;
+    }
     applyCourseRecord(record);
     setCurrentCourseId(record.meta.id);
     state.searchQuery = '';
@@ -724,6 +850,7 @@ function switchCourse(id: string) {
     renderCourseList();
     closeCourseModal();
     showToast(`Đã chuyển sang khóa ${state.courseName}`);
+    maybeStartCollab();
 }
 
 function createCourseFromName(name: string, cloneSourceId = '') {
@@ -773,6 +900,7 @@ function createCourseFromName(name: string, cloneSourceId = '') {
     renderCourseList();
     closeCourseModal();
     showToast(cloneSourceId ? `Đã nhân bản thành khóa ${courseName}` : `Đã tạo khóa ${courseName}`);
+    maybeStartCollab();
 }
 
 async function renameCourse(id: string, name: string) {
@@ -786,6 +914,7 @@ async function renameCourse(id: string, name: string) {
 
     if (id === state.courseId) {
         state.courseName = newName;
+        state.settingsUpdatedAt = new Date().toISOString();
         saveData();
         applyMetaToUI();
     } else {
@@ -849,6 +978,453 @@ Thao tác không thể hoàn tác.`
 
     renderCourseList();
     showToast('Đã xóa khóa học.');
+    maybeStartCollab();
+}
+
+// ============================================================
+// STUDENTS & LEADERS
+// ============================================================
+const studentUi = {
+    tab: 'students' as 'students' | 'leaders',
+    query: '',
+    building: 'ALL',
+    room: 'ALL',
+    platoon: 'ALL'
+};
+
+function studentInitials(name: string): string {
+    const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    return words.slice(-2).map(word => word[0]).join('').toUpperCase();
+}
+
+function studentPositionClass(position: string): string {
+    if (position === 'Phó đại đội trưởng') return 'deputy';
+    if (position === 'Trung đội trưởng') return 'platoon';
+    if (position === 'Tiểu đội trưởng') return 'squad';
+    return 'member';
+}
+
+function studentFilterOptions(values: string[], current: string, allLabel: string): string {
+    const unique = Array.from(new Set(values.filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'vi', { numeric: true }));
+    return `<option value="ALL"${current === 'ALL' ? ' selected' : ''}>${escapeHtml(allLabel)}</option>`
+        + unique.map(value => `<option value="${escapeHtml(value)}"${current === value ? ' selected' : ''}>${escapeHtml(value)}</option>`).join('');
+}
+
+function getFilteredStudents(): Student[] {
+    const query = normalizeText(studentUi.query);
+    return sortStudents(state.students).filter(student => {
+        if (studentUi.building !== 'ALL' && student.building !== studentUi.building) return false;
+        if (studentUi.room !== 'ALL' && student.room !== studentUi.room) return false;
+        if (studentUi.platoon !== 'ALL' && String(student.trungDoi || '') !== studentUi.platoon) return false;
+        if (!query) return true;
+        return [
+            student.name,
+            student.code,
+            student.building,
+            student.room,
+            student.tieuDoi,
+            student.trungDoi,
+            student.position,
+            student.phone,
+            student.note
+        ].some(value => normalizeText(value).includes(query));
+    });
+}
+
+function renderStudentFilters() {
+    const buildings = state.students.map((student: Student) => student.building)
+        .concat(state.items.map((item: any) => item.building));
+    if (studentUi.building !== 'ALL' && !buildings.includes(studentUi.building)) studentUi.building = 'ALL';
+
+    const rooms = state.students
+        .filter((student: Student) => studentUi.building === 'ALL' || student.building === studentUi.building)
+        .map((student: Student) => student.room);
+    if (studentUi.room !== 'ALL' && !rooms.includes(studentUi.room)) studentUi.room = 'ALL';
+
+    const platoonIds = state.items.map((item: any) => String(item.id));
+    if (studentUi.platoon !== 'ALL' && !platoonIds.includes(studentUi.platoon)) studentUi.platoon = 'ALL';
+
+    elements.studentBuildingFilter.innerHTML = studentFilterOptions(buildings, studentUi.building, 'Tất cả tòa');
+    elements.studentRoomFilter.innerHTML = studentFilterOptions(rooms, studentUi.room, 'Tất cả phòng');
+    elements.studentPlatoonFilter.innerHTML = studentFilterOptions(platoonIds, studentUi.platoon, 'Tất cả trung đội')
+        .replace(/>(\d+)<\/option>/g, '>TĐ $1</option>');
+
+    const buildingList = document.getElementById('studentBuildingOptions');
+    if (buildingList) {
+        buildingList.innerHTML = Array.from(new Set(buildings.filter(Boolean))).sort().map(value => `<option value="${escapeHtml(value)}"></option>`).join('');
+    }
+    const platoonList = document.getElementById('studentPlatoonOptions');
+    if (platoonList) {
+        platoonList.innerHTML = platoonIds.sort((a, b) => Number(a) - Number(b)).map(value => `<option value="${escapeHtml(value)}"></option>`).join('');
+    }
+}
+
+function renderStudentRows(students: Student[]): string {
+    return students.map(student => {
+        const meta = [
+            student.code ? `Mã: ${escapeHtml(student.code)}` : '',
+            student.trungDoi ? `TĐ ${escapeHtml(student.trungDoi)}` : '',
+            student.tieuDoi ? `Tiểu đội ${escapeHtml(student.tieuDoi)}` : '',
+            student.phone ? `SĐT: ${escapeHtml(student.phone)}` : ''
+        ].filter(Boolean).join(' · ');
+
+        return `
+            <div class="student-row" data-student-id="${escapeHtml(student.id)}">
+                <div class="student-avatar">${escapeHtml(studentInitials(student.name))}</div>
+                <div class="student-row-main">
+                    <div class="student-row-name">
+                        ${escapeHtml(student.name)}
+                        <span class="student-position ${studentPositionClass(student.position)}">${escapeHtml(student.position || 'Học viên')}</span>
+                    </div>
+                    <div class="student-row-meta">${meta || 'Chưa có thông tin lớp/phòng'}</div>
+                    ${student.note ? `<div class="student-row-note">${escapeHtml(student.note)}</div>` : ''}
+                </div>
+                <div class="student-row-actions">
+                    <button type="button" class="btn-student-action" data-student-action="edit" data-student-id="${escapeHtml(student.id)}">Sửa</button>
+                    <button type="button" class="btn-student-action danger" data-student-action="delete" data-student-id="${escapeHtml(student.id)}">Xóa</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderStudentRoomList() {
+    const students = getFilteredStudents();
+    const groups = groupStudentsByRoom(students);
+    const totalRooms = new Set(state.students.map((student: Student) => `${normalizeText(student.building)}::${normalizeText(student.room)}`).filter(key => key !== '::')).size;
+    const leaderCount = state.students.filter((student: Student) => isLeaderPosition(student.position)).length;
+
+    elements.studentSummary.innerHTML = `
+        <span><strong>${state.students.length}</strong> sinh viên</span>
+        <span><strong>${totalRooms}</strong> phòng</span>
+        <span><strong>${state.items.length}</strong> trung đội</span>
+        <span><strong>${leaderCount}</strong> cán sự</span>
+        ${students.length !== state.students.length ? `<span class="student-filter-count">Đang hiện ${students.length}</span>` : ''}
+    `;
+
+    if (!groups.length) {
+        elements.studentRoomList.innerHTML = `<div class="empty-state">Chưa có sinh viên phù hợp. Bấm <strong>+ Thêm sinh viên</strong> hoặc <strong>Nhập Excel/CSV</strong> để bắt đầu.</div>`;
+        return;
+    }
+
+    elements.studentRoomList.innerHTML = groups.map(group => {
+        const unitInfo = [
+            group.trungDois.length ? `TĐ ${group.trungDois.join(', ')}` : '',
+            group.tieuDois.length ? `Tiểu đội ${group.tieuDois.join(', ')}` : ''
+        ].filter(Boolean).join(' · ');
+        return `
+            <section class="student-room-group">
+                <div class="student-room-head">
+                    <div>
+                        <div class="student-room-title">${escapeHtml(group.building || 'Chưa xếp tòa')} · Phòng ${escapeHtml(group.room || '—')}</div>
+                        <div class="student-room-sub">${group.students.length} sinh viên${unitInfo ? ` · ${escapeHtml(unitInfo)}` : ''}</div>
+                    </div>
+                    <span class="student-room-count">${group.students.length}</span>
+                </div>
+                <div class="student-rows">${renderStudentRows(group.students)}</div>
+            </section>
+        `;
+    }).join('');
+}
+
+function renderLeaderList() {
+    const leaders = sortStudents(state.students.filter((student: Student) => isLeaderPosition(student.position)));
+    const counts = LEADER_POSITIONS.map(role => ({
+        role,
+        count: leaders.filter(student => student.position === role).length
+    }));
+
+    elements.leaderSummary.innerHTML = counts.map(entry =>
+        `<span class="leader-summary-item"><strong>${entry.count}</strong> ${escapeHtml(entry.role)}</span>`
+    ).join('');
+
+    if (!leaders.length) {
+        elements.leaderList.innerHTML = `<div class="empty-state">Chưa có cán sự. Bấm <strong>+ Thêm cán sự</strong> hoặc sửa chức vụ của sinh viên trong tab Sinh viên.</div>`;
+        return;
+    }
+
+    elements.leaderList.innerHTML = LEADER_POSITIONS.map(role => {
+        const roleLeaders = leaders.filter(student => student.position === role);
+        if (!roleLeaders.length) return '';
+        return `
+            <section class="leader-section">
+                <div class="leader-section-title">${escapeHtml(role)} <span>${roleLeaders.length}</span></div>
+                <div class="leader-rows">
+                    ${roleLeaders.map(student => `
+                        <div class="leader-row">
+                            <div class="student-avatar">${escapeHtml(studentInitials(student.name))}</div>
+                            <div class="leader-row-main">
+                                <div class="student-row-name">${escapeHtml(student.name)}</div>
+                                <div class="student-row-meta">
+                                    ${student.trungDoi ? `TĐ ${escapeHtml(student.trungDoi)}` : 'Chưa xếp trung đội'}
+                                    ${student.tieuDoi ? ` · Tiểu đội ${escapeHtml(student.tieuDoi)}` : ''}
+                                    ${student.room ? ` · P. ${escapeHtml(student.room)}` : ''}
+                                    ${student.phone ? ` · ${escapeHtml(student.phone)}` : ''}
+                                </div>
+                            </div>
+                            <div class="student-row-actions">
+                                <button type="button" class="btn-student-action" data-leader-action="edit" data-student-id="${escapeHtml(student.id)}">Sửa</button>
+                                <button type="button" class="btn-student-action" data-leader-action="clear" data-student-id="${escapeHtml(student.id)}">Bỏ chức vụ</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </section>
+        `;
+    }).join('');
+}
+
+function renderStudentUI() {
+    renderStudentFilters();
+    renderStudentRoomList();
+    renderLeaderList();
+    elements.studentListPanel.hidden = studentUi.tab !== 'students';
+    elements.leaderListPanel.hidden = studentUi.tab !== 'leaders';
+    elements.tabStudents.classList.toggle('active', studentUi.tab === 'students');
+    elements.tabLeaders.classList.toggle('active', studentUi.tab === 'leaders');
+}
+
+function openStudentsModal(options: { platoonId?: string; tab?: 'students' | 'leaders' } = {}) {
+    if (options.platoonId) {
+        studentUi.platoon = String(options.platoonId);
+        studentUi.building = 'ALL';
+        studentUi.room = 'ALL';
+        studentUi.query = '';
+        if (elements.studentSearch) elements.studentSearch.value = '';
+    }
+    if (options.tab) studentUi.tab = options.tab;
+    renderStudentUI();
+    elements.studentsModal.classList.add('open');
+    closeStudentEditor();
+}
+
+function closeStudentsModal() {
+    elements.studentsModal.classList.remove('open');
+    closeStudentEditor();
+}
+
+function setStudentTab(tab: 'students' | 'leaders') {
+    studentUi.tab = tab;
+    renderStudentUI();
+}
+
+function openStudentsForPlatoon(id: number | string) {
+    openStudentsModal({ platoonId: String(id), tab: 'students' });
+}
+
+function populateStudentPositionSelect(selected = 'Học viên') {
+    const options = STUDENT_POSITIONS as readonly string[];
+    elements.studentPosition.innerHTML = options.map(position =>
+        `<option value="${escapeHtml(position)}"${position === selected ? ' selected' : ''}>${escapeHtml(position)}</option>`
+    ).join('');
+}
+
+function openStudentEditor(student: Student | null = null, presetPosition = 'Học viên') {
+    elements.studentStatus.textContent = '';
+    elements.studentStatus.className = 'student-status';
+    elements.studentEditor.hidden = false;
+    elements.studentEditorTitle.textContent = student ? 'Sửa thông tin sinh viên' : 'Thêm sinh viên';
+    elements.studentEditId.value = student ? student.id : '';
+    elements.studentName.value = student ? student.name : '';
+    elements.studentCode.value = student ? student.code : '';
+    elements.studentBuilding.value = student ? student.building : (studentUi.building !== 'ALL' ? studentUi.building : '');
+    elements.studentRoom.value = student ? student.room : (studentUi.room !== 'ALL' ? studentUi.room : '');
+    elements.studentTieuDoi.value = student ? student.tieuDoi : '';
+    elements.studentTrungDoi.value = student ? student.trungDoi : (studentUi.platoon !== 'ALL' ? studentUi.platoon : '');
+    elements.studentPhone.value = student ? student.phone : '';
+    elements.studentNote.value = student ? student.note : '';
+    populateStudentPositionSelect(student ? student.position : presetPosition);
+    elements.studentEditor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(() => elements.studentName.focus(), 80);
+}
+
+function closeStudentEditor() {
+    elements.studentEditor.hidden = true;
+    elements.studentStatus.textContent = '';
+}
+
+function reconcileStudentTombstones(previous: Student[], next: Student[], at: string): void {
+    const nextIds = new Set((next || []).map(student => student.id));
+    const tombstones = { ...state.studentTombstones };
+    (previous || []).forEach(student => {
+        if (!nextIds.has(student.id)) tombstones[student.id] = at;
+    });
+    (next || []).forEach(student => {
+        delete tombstones[student.id];
+    });
+    state.studentTombstones = tombstones;
+}
+
+function saveStudentFromForm() {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi sửa danh sách sinh viên.');
+        return;
+    }
+
+    const name = String(elements.studentName.value || '').trim();
+    if (!name) {
+        elements.studentStatus.textContent = 'Hãy nhập họ tên sinh viên.';
+        elements.studentStatus.className = 'student-status error';
+        elements.studentName.focus();
+        return;
+    }
+
+    const now = new Date().toISOString();
+    const id = String(elements.studentEditId.value || '');
+    const existing = state.students.find((student: Student) => student.id === id);
+    const student: Student = {
+        id: existing ? existing.id : `sv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        code: String(elements.studentCode.value || '').trim(),
+        building: String(elements.studentBuilding.value || '').trim(),
+        room: String(elements.studentRoom.value || '').trim(),
+        tieuDoi: String(elements.studentTieuDoi.value || '').trim(),
+        trungDoi: String(elements.studentTrungDoi.value || '').trim(),
+        position: normalizePosition(elements.studentPosition.value),
+        phone: String(elements.studentPhone.value || '').trim(),
+        note: String(elements.studentNote.value || '').trim(),
+        updatedAt: now,
+        updatedBy: state.graderName || 'Giảng viên'
+    };
+
+    if (existing) {
+        const index = state.students.findIndex((entry: Student) => entry.id === existing.id);
+        state.students[index] = student;
+        logAudit('Sửa sinh viên', `${student.name}${student.position !== 'Học viên' ? ` · ${student.position}` : ''}`);
+    } else {
+        state.students.push(student);
+        logAudit('Thêm sinh viên', `${student.name}${student.room ? ` · P. ${student.room}` : ''}${student.position !== 'Học viên' ? ` · ${student.position}` : ''}`);
+    }
+
+    const previousStudents = state.students.slice();
+    state.students = sortStudents(state.students);
+    reconcileStudentTombstones(previousStudents, state.students, now);
+    state.studentsUpdatedAt = now;
+    saveData();
+    closeStudentEditor();
+    renderStudentUI();
+    render();
+    showToast(existing ? 'Đã cập nhật sinh viên.' : 'Đã thêm sinh viên.');
+}
+
+async function deleteStudent(id: string) {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi xóa sinh viên.');
+        return;
+    }
+    const student = state.students.find((entry: Student) => entry.id === id);
+    if (!student) return;
+    const ok = await customConfirm('Xóa Sinh Viên', `Xóa ${student.name} khỏi danh sách của khóa này?`);
+    if (!ok) return;
+
+    const now = new Date().toISOString();
+    const previousStudents = state.students.slice();
+    state.students = state.students.filter((entry: Student) => entry.id !== id);
+    reconcileStudentTombstones(previousStudents, state.students, now);
+    state.studentsUpdatedAt = now;
+    logAudit('Xóa sinh viên', `${student.name}${student.room ? ` · P. ${student.room}` : ''}`);
+    saveData();
+    renderStudentUI();
+    render();
+    showToast('Đã xóa sinh viên.');
+}
+
+function clearLeaderPosition(id: string) {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi sửa ban cán sự.');
+        return;
+    }
+    const student = state.students.find((entry: Student) => entry.id === id);
+    if (!student) return;
+    const oldPosition = student.position;
+    student.position = 'Học viên';
+    student.updatedAt = new Date().toISOString();
+    student.updatedBy = state.graderName || 'Giảng viên';
+    state.studentsUpdatedAt = student.updatedAt;
+    logAudit('Bỏ chức vụ', `${student.name}: ${oldPosition} → Học viên`);
+    saveData();
+    renderStudentUI();
+    render();
+    showToast('Đã bỏ chức vụ cán sự.');
+}
+
+async function importStudentsFromFile(file: File) {
+    if (state.locked) {
+        showToast('Sổ điểm đã khóa. Hãy mở khóa trước khi nhập danh sách sinh viên.');
+        return;
+    }
+    if (!file) return;
+
+    elements.studentStatus.textContent = 'Đang đọc file...';
+    elements.studentStatus.className = 'student-status';
+    try {
+        const workbook = await parseSheetFile(file);
+        let best: ReturnType<typeof parseStudentRows> | null = null;
+        let bestName = '';
+        workbook.sheets.forEach(sheet => {
+            const result = parseStudentRows(sheet.rows, state.items);
+            if (!best || result.students.length > best.students.length) {
+                best = result;
+                bestName = sheet.name;
+            }
+        });
+
+        if (!best || !best.students.length) {
+            const message = best && best.errors.length
+                ? best.errors.slice(0, 4).join(' · ')
+                : 'Không đọc được sinh viên từ file này.';
+            elements.studentStatus.textContent = message;
+            elements.studentStatus.className = 'student-status error';
+            showToast(message);
+            return;
+        }
+
+        const result = best;
+        const mode = elements.studentImportMode.value;
+        const ok = await customConfirm(
+            'Nhập Danh Sách Sinh Viên',
+            `Tìm thấy ${result.students.length} sinh viên trong trang "${bestName}".\n`
+            + `${mode === 'replace' ? 'Thay thế toàn bộ danh sách hiện tại?' : 'Cập nhật vào danh sách hiện tại?'}`
+            + (result.errors.length ? `\n${result.errors.length} dòng lỗi sẽ bị bỏ qua.` : '')
+        );
+        if (!ok) {
+            elements.studentStatus.textContent = '';
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const previousStudents = state.students.slice();
+        const incoming = result.students.map(student => ({ ...student, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
+        state.students = mode === 'replace' ? sortStudents(incoming) : mergeStudentLists(state.students, incoming);
+        reconcileStudentTombstones(previousStudents, state.students, now);
+        state.studentsUpdatedAt = now;
+        logAudit('Nhập danh sách sinh viên', `${mode === 'replace' ? 'Thay thế' : 'Cập nhật'} ${incoming.length} sinh viên từ ${file.name}`);
+        saveData();
+        renderStudentUI();
+        render();
+        elements.studentStatus.textContent = `Đã nhập ${incoming.length} sinh viên từ ${file.name}.`;
+        elements.studentStatus.className = 'student-status ok';
+        showToast(`Đã nhập ${incoming.length} sinh viên.`);
+    } catch (error) {
+        const message = `Không đọc được file: ${(error as Error).message}`;
+        elements.studentStatus.textContent = message;
+        elements.studentStatus.className = 'student-status error';
+        showToast(message);
+    }
+}
+
+function exportStudentCSV(leadersOnly = false) {
+    const students = leadersOnly
+        ? state.students.filter((student: Student) => isLeaderPosition(student.position))
+        : state.students;
+    if (!students.length) {
+        showToast(leadersOnly ? 'Chưa có cán sự để xuất.' : 'Chưa có sinh viên để xuất.');
+        return;
+    }
+    const filename = `${leadersOnly ? 'CanSu' : 'SinhVien'}_${slugify(state.courseName)}_${dateToken()}.csv`;
+    downloadFile('\uFEFF' + studentCSV(students), filename, 'text/csv;charset=utf-8');
+    showToast(leadersOnly ? 'Đã xuất CSV ban cán sự.' : 'Đã xuất CSV sinh viên.');
 }
 
 // ============================================================
@@ -936,7 +1512,12 @@ async function restoreBackup(id: string) {
     const now = new Date().toISOString();
     record.meta.id = state.courseId;
     record.meta.updatedAt = now;
+    record.meta.settingsUpdatedAt = now;
+    record.meta.itemsUpdatedAt = now;
+    record.meta.studentsUpdatedAt = now;
     record.savedAt = now;
+    record.items = (record.items || []).map(item => ({ ...item, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
+    record.students = normalizeStudents(record.students).map(student => ({ ...student, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
 
     applyCourseRecord(record);
     logAudit('Khôi phục bản sao lưu', `Khôi phục bản lưu lúc ${formatCourseDate(snapshot.createdAt)}`);
@@ -1012,6 +1593,8 @@ function saveCloudForm() {
     }
     state.cloudConfig = config;
     setCloudStatus({ ok: true, message: 'Đã lưu cấu hình đồng bộ trên thiết bị.' });
+    if (state.collabSettings.enabled) startCollab();
+    renderCollabUI();
     showToast('Đã lưu cấu hình đồng bộ đám mây.');
 }
 
@@ -1022,6 +1605,7 @@ async function testCloud() {
     setCloudStatus({ ok: true, message: 'Đang kiểm tra kết nối...' });
     const status = await testCloudConnection(config);
     setCloudStatus(status);
+    if (status.ok && state.collabSettings.enabled) startCollab();
     showToast(status.message);
 }
 
@@ -1080,7 +1664,12 @@ async function pullCloudNow() {
     const now = new Date().toISOString();
     record.meta.id = state.courseId;
     record.meta.updatedAt = now;
+    record.meta.settingsUpdatedAt = now;
+    record.meta.itemsUpdatedAt = now;
+    record.meta.studentsUpdatedAt = now;
     record.savedAt = now;
+    record.items = (record.items || []).map(item => ({ ...item, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
+    record.students = normalizeStudents(record.students).map(student => ({ ...student, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
 
     applyCourseRecord(record);
     logAudit('Đồng bộ đám mây', 'Kéo dữ liệu khóa từ Supabase');
@@ -1090,6 +1679,298 @@ async function pullCloudNow() {
     render();
     setCloudStatus({ ok: true, message: 'Đã kéo dữ liệu từ Supabase.' });
     showToast('Đã đồng bộ dữ liệu từ đám mây.');
+}
+
+// ============================================================
+// COLLABORATION (SUPABASE REALTIME + REST)
+// ============================================================
+function collabIsConfigured(): boolean {
+    return Boolean(state.cloudConfig && isCloudConfigured(state.cloudConfig));
+}
+
+function formatCollabTime(value: string): string {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function isRecordPristine(record: CourseRecord): boolean {
+    const items = Array.isArray(record.items) ? record.items : [];
+    const hasScores = items.some(item =>
+        Number(item.hocTap) !== 0
+        || Number(item.renLuyen) !== 0
+        || Number(item.nvvs) !== 0
+        || Number(item.leTiet) !== 0
+        || Boolean(item.note)
+    );
+    return !hasScores
+        && !(Array.isArray(record.students) && record.students.length)
+        && !(Array.isArray(record.audit) && record.audit.length);
+}
+
+async function applyRemoteRecord(record: CourseRecord, info: { initial: boolean; name: string; updatedAt: string }): Promise<void> {
+    const localRecord = buildPayload();
+    const localGraderName = state.graderName || 'Giảng viên';
+    const localPristine = isRecordPristine(localRecord);
+    let target: CourseRecord = record;
+    let localNewer = false;
+    let remoteNewer = true;
+
+    // Lần đầu bật cộng tác: nếu bản trên Supabase vẫn trống mà máy này đã có
+    // điểm/sinh viên thì giữ dữ liệu cục bộ và đẩy lên làm bản gốc.
+    if (info.initial && !localPristine && isRecordPristine(record)) {
+        if (state.collabSession) state.collabSession.schedulePush(localRecord);
+        return;
+    }
+
+    if (!(info.initial && localPristine)) {
+        const merged = mergeCourseRecords(localRecord, record, { initial: info.initial });
+        target = merged.record;
+        localNewer = merged.localNewer;
+        remoteNewer = merged.remoteNewer;
+        if (!merged.changed) {
+            if (localNewer && state.collabSession) state.collabSession.schedulePush(localRecord);
+            return;
+        }
+    }
+
+    target.meta.id = state.courseId;
+    target.meta.graderName = localGraderName;
+    state.applyingRemote = true;
+    try {
+        applyCourseRecord(target);
+        state.graderName = localGraderName;
+        applyMetaToUI();
+        renderBuildingPills();
+        updateCalculations();
+        render();
+        if (elements.gradingDrawer.classList.contains('open')) populateDrawer();
+    } finally {
+        state.applyingRemote = false;
+    }
+
+    if (localNewer && state.collabSession) {
+        state.collabSession.schedulePush(buildPayload());
+    }
+    if (remoteNewer) {
+        showToast(info.initial ? 'Đã tải dữ liệu cộng tác mới nhất.' : 'Đã nhận cập nhật từ cộng tác viên.');
+    }
+}
+
+function renderCollabUI(): void {
+    if (!elements.collabModal) return;
+
+    const configured = collabIsConfigured();
+    const active = Boolean(state.collabSession);
+    const status = state.collabStatus as CollabStatus | null;
+    const users: CollabUser[] = status && Array.isArray(status.users) ? status.users : [];
+    const stateName = status ? status.state : 'off';
+
+    let title = 'Chưa bật cộng tác';
+    let text = 'Bật cộng tác để nhiều người cùng chỉnh sửa bảng điểm và danh sách sinh viên.';
+    if (!configured) {
+        title = 'Chưa cấu hình Supabase';
+        text = 'Mở Cấu hình Supabase để nhập URL, anon key và bảng đồng bộ trước khi bật cộng tác.';
+    } else if (!state.collabSettings.enabled) {
+        title = 'Cộng tác đang tắt';
+        text = 'Dữ liệu chỉ lưu trên thiết bị này. Bật cộng tác để làm việc cùng người khác.';
+    } else if (status) {
+        if (stateName === 'connected') {
+            title = 'Đang cộng tác';
+        } else if (stateName === 'connecting') {
+            title = 'Đang kết nối...';
+        } else if (stateName === 'error') {
+            title = 'Cộng tác gặp lỗi';
+        } else {
+            title = 'Đã tắt cộng tác';
+        }
+        text = status.message || text;
+    } else {
+        title = 'Đang bật cộng tác...';
+        text = 'Đang chuẩn bị kết nối tới Supabase.';
+    }
+
+    elements.collabStatusTitle.textContent = title;
+    elements.collabStatusText.textContent = text;
+    elements.collabStatusCard.classList.remove('connected', 'error', 'connecting', 'off');
+    elements.collabStatusCard.classList.add(stateName === 'connected' ? 'connected' : stateName === 'error' ? 'error' : stateName === 'connecting' ? 'connecting' : 'off');
+    elements.collabDot.className = `collab-dot ${stateName}`;
+    elements.collabLastSync.textContent = status && status.lastSyncAt
+        ? `Đồng bộ lần cuối: ${formatCollabTime(status.lastSyncAt)}`
+        : 'Chưa có lần đồng bộ nào trong phiên này.';
+
+    elements.btnCollabToggle.textContent = !configured ? 'Cấu hình Supabase' : active ? 'Tắt cộng tác' : 'Bật cộng tác';
+    elements.btnCollabToggle.classList.toggle('primary', !active);
+    elements.btnCollabToggle.classList.toggle('secondary', active);
+
+    if (configured) {
+        let host = state.cloudConfig.url;
+        try { host = new URL(state.cloudConfig.url).host; } catch { /* giữ nguyên URL */ }
+        elements.collabConfigLine.textContent = `Supabase: ${host} · bảng ${state.cloudConfig.table} · nhóm ${state.cloudConfig.syncId}`;
+        elements.collabConfigLine.className = 'collab-config-line ok';
+    } else {
+        elements.collabConfigLine.textContent = 'Chưa có cấu hình Supabase. Bấm “Cấu hình Supabase” để thiết lập.';
+        elements.collabConfigLine.className = 'collab-config-line missing';
+    }
+
+    if (!elements.collabDisplayName.value) {
+        elements.collabDisplayName.value = state.collabSettings.displayName || state.graderName || 'Giảng viên';
+    }
+    elements.collabSyncId.value = state.cloudConfig ? state.cloudConfig.syncId : '';
+
+    elements.collabUserCount.textContent = status && !status.realtime ? '—' : String(users.length);
+    if (!active) {
+        elements.collabUsers.innerHTML = '<div class="collab-empty">Bật cộng tác để xem những người đang online.</div>';
+    } else if (!users.length) {
+        elements.collabUsers.innerHTML = status && !status.realtime
+            ? '<div class="collab-empty">Realtime chưa kết nối nên chưa xem được danh sách online. Dữ liệu vẫn đồng bộ qua Supabase mỗi 15 giây.</div>'
+            : '<div class="collab-empty">Chỉ bạn đang online. Chờ người khác mở ứng dụng...</div>';
+    } else {
+        elements.collabUsers.innerHTML = users.map(user => `
+            <div class="collab-user">
+                <span class="collab-user-dot" style="background:${escapeHtml(user.color)}"></span>
+                <span class="collab-user-name">${escapeHtml(user.name)}</span>
+                ${user.isSelf ? '<span class="collab-user-self">Bạn</span>' : ''}
+            </div>
+        `).join('');
+    }
+
+    if (elements.collabIndicator) {
+        elements.collabIndicator.hidden = !state.collabSettings.enabled;
+        elements.collabIndicator.classList.toggle('connected', stateName === 'connected');
+        elements.collabIndicator.classList.toggle('error', stateName === 'error');
+        elements.collabIndicatorText.textContent = stateName === 'connected'
+            ? `Cộng tác · ${Math.max(users.length, 1)}`
+            : stateName === 'error'
+                ? 'Cộng tác lỗi'
+                : 'Đang kết nối';
+        elements.collabIndicator.title = status ? status.message : 'Mở cộng tác nhóm';
+    }
+}
+
+function openCollabModal(): void {
+    state.collabSettings = loadCollabSettings();
+    elements.collabDisplayName.value = state.collabSettings.displayName || state.graderName || 'Giảng viên';
+    renderCollabUI();
+    elements.collabModal.classList.add('open');
+}
+
+function closeCollabModal(): void {
+    elements.collabModal.classList.remove('open');
+}
+
+function stopCollab(): void {
+    const session = state.collabSession;
+    state.collabSession = null;
+    if (session) session.stop();
+    state.collabStatus = null;
+    renderCollabUI();
+}
+
+function startCollab(): void {
+    if (!collabIsConfigured()) {
+        state.collabStatus = null;
+        renderCollabUI();
+        return;
+    }
+
+    if (state.collabSession) {
+        const oldSession = state.collabSession;
+        state.collabSession = null;
+        oldSession.stop();
+    }
+
+    const displayName = state.collabSettings.displayName || state.graderName || 'Giảng viên';
+    state.collabStatus = {
+        state: 'connecting',
+        message: 'Đang kết nối tới Supabase...',
+        users: [],
+        lastSyncAt: '',
+        realtime: false
+    };
+    state.collabSession = new CollabSession({
+        config: state.cloudConfig as CloudConfig,
+        courseId: state.courseId,
+        displayName,
+        getLocalRecord: () => buildPayload(),
+        onStatus: status => {
+            state.collabStatus = status;
+            renderCollabUI();
+        },
+        onRemoteRecord: (record, info) => applyRemoteRecord(record, info)
+    });
+    renderCollabUI();
+    void state.collabSession.start();
+}
+
+function maybeStartCollab(): void {
+    if (state.collabSettings.enabled) {
+        if (collabIsConfigured()) {
+            startCollab();
+        } else {
+            state.collabSettings.enabled = false;
+            saveCollabSettings(state.collabSettings);
+            state.collabStatus = null;
+            renderCollabUI();
+        }
+    } else {
+        state.collabStatus = null;
+        renderCollabUI();
+    }
+}
+
+function toggleCollab(): void {
+    if (state.collabSession) {
+        state.collabSettings.enabled = false;
+        saveCollabSettings(state.collabSettings);
+        stopCollab();
+        showToast('Đã tắt cộng tác nhóm.');
+        return;
+    }
+
+    if (!collabIsConfigured()) {
+        closeCollabModal();
+        openCloudModal();
+        showToast('Hãy cấu hình Supabase trước khi bật cộng tác.');
+        return;
+    }
+
+    state.collabSettings.enabled = true;
+    saveCollabSettings(state.collabSettings);
+    startCollab();
+    showToast('Đã bật cộng tác nhóm.');
+}
+
+function saveCollabDisplayName(): void {
+    const name = String(elements.collabDisplayName.value || '').trim() || 'Giảng viên';
+    state.collabSettings.displayName = name;
+    saveCollabSettings(state.collabSettings);
+    if (state.collabSession) state.collabSession.setDisplayName(name);
+    renderCollabUI();
+    showToast('Đã lưu tên hiển thị cộng tác.');
+}
+
+async function pullCollabNow(): Promise<void> {
+    if (!state.collabSession) {
+        showToast('Cộng tác chưa bật. Hãy bật cộng tác trước.');
+        return;
+    }
+    const status = await state.collabSession.pullNow(false);
+    showToast(status.message);
+}
+
+async function pushCollabNow(): Promise<void> {
+    if (!state.collabSession) {
+        showToast('Cộng tác chưa bật. Hãy bật cộng tác trước.');
+        return;
+    }
+    if (!saveData()) {
+        showToast('Không lưu được dữ liệu cục bộ trước khi đẩy.');
+        return;
+    }
+    const status = await state.collabSession.pushNow(buildPayload());
+    showToast(status.message);
 }
 
 // ============================================================
@@ -1201,6 +2082,7 @@ async function toggleLock() {
     if (!ok) return;
 
     state.locked = nextLocked;
+    state.settingsUpdatedAt = new Date().toISOString();
     if (nextLocked) {
         state.lockedAt = new Date().toISOString();
         state.lockedBy = state.graderName || 'Giảng viên';
@@ -1229,10 +2111,14 @@ function saveGraderName() {
 
     const oldName = state.graderName || 'Giảng viên';
     state.graderName = name;
+    if (!state.collabSettings.displayName && state.collabSession) {
+        state.collabSession.setDisplayName(name);
+    }
     logAudit('Đổi người chấm', `${oldName} → ${name}`);
     saveData();
     renderLockUI();
     renderAuditList();
+    renderCollabUI();
     showToast('Đã lưu tên người chấm.');
 }
 
@@ -1352,6 +2238,7 @@ function renderCards(items) {
     elements.cardsList.innerHTML = items.map(item => {
         const isDeducted = item.totalScore < state.baseScore;
         const isTop1 = item.rank === 1;
+        const studentCount = countStudentsForPlatoon(state.students, item);
 
         const breakdownValues = [
             ['HT', item.hocTap],
@@ -1376,6 +2263,7 @@ function renderCards(items) {
                             <span class="badge-id">Trung Đội ${item.id}</span>
                             <span class="badge-building">${escapeHtml(item.building || 'Chưa xếp tòa')}</span>
                             <span class="badge-qs">QS: ${escapeHtml(item.quanSo || '—')}</span>
+                            <button type="button" class="badge-students" onclick="openStudentsForPlatoon(${item.id})" title="Xem danh sách sinh viên của trung đội">SV: ${studentCount}</button>
                         </div>
                         <div class="card-room-info">Phòng: ${escapeHtml(item.rooms || '—')}</div>
                     </div>
@@ -1418,6 +2306,7 @@ function renderTable(items) {
                 <td>
                     <strong style="color:#0f172a;">B${item.id} (${escapeHtml(item.building)})</strong>
                     <div style="font-size:10px; color:#64748b;">P. ${escapeHtml(item.rooms)}</div>
+                    <button type="button" class="table-student-link" onclick="openStudentsForPlatoon(${item.id})">SV: ${countStudentsForPlatoon(state.students, item)}</button>
                 </td>
                 <td style="text-align:center;">
                     <input type="text" class="table-input" inputmode="numeric" value="${escapeHtml(item.quanSo)}" onchange="updateItemQuanSo(${item.id}, this.value)" ${state.locked ? 'disabled' : ''}>
@@ -1554,6 +2443,8 @@ function saveDrawerCurrentValues(options: any = {}) {
         item[entry[0]] = parsedValues[entry[0]];
     });
     item.note = String(elements.drawerNote.value).trim();
+    item.updatedAt = new Date().toISOString();
+    item.updatedBy = state.graderName || 'Giảng viên';
 
     if (opts.normalize) {
         const labels = { hocTap: 'Học tập', renLuyen: 'Rèn luyện', nvvs: 'NVVS', leTiet: 'Lễ tiết' };
@@ -1664,6 +2555,8 @@ function updateItemQuanSo(id, value) {
     }
 
     if (String(oldValue || '') !== String(item.quanSo || '')) {
+        item.updatedAt = new Date().toISOString();
+        item.updatedBy = state.graderName || 'Giảng viên';
         logAudit('Sửa quân số', `TĐ ${id}: ${oldValue || '—'} → ${item.quanSo || '—'}`);
     }
 
@@ -1685,6 +2578,8 @@ function updateItemCat(id, category, value) {
     const oldValue = item[category];
     item[category] = parseScoreVal(value);
     if (Number(oldValue) !== Number(item[category])) {
+        item.updatedAt = new Date().toISOString();
+        item.updatedBy = state.graderName || 'Giảng viên';
         logAudit('Sửa điểm', `TĐ ${id} · ${labels[category] || category}: ${formatNum(oldValue)} → ${formatNum(item[category])}`);
     }
     updateCalculations();
@@ -1822,9 +2717,10 @@ async function saveSettings() {
 
     captureSnapshot('Trước khi đổi cấu hình', true);
 
+    const now = new Date().toISOString();
     state.items = parsed.items.map((entry: any) => {
         const old: any = existingById.get(entry.id);
-        return {
+        const next = {
             id: entry.id,
             building: entry.building,
             rooms: entry.rooms,
@@ -1835,10 +2731,21 @@ async function saveSettings() {
             leTiet: old ? old.leTiet : 0,
             note: old ? old.note : '',
             totalScore: 0,
-            rank: 1
+            rank: 1,
+            updatedAt: old ? String(old.updatedAt || '') : now,
+            updatedBy: old ? String(old.updatedBy || '') : (state.graderName || 'Giảng viên')
         };
+        const changed = !old || ['building', 'rooms', 'quanSo', 'hocTap', 'renLuyen', 'nvvs', 'leTiet', 'note']
+            .some(field => String(old[field] ?? '') !== String(next[field] ?? ''));
+        if (changed) {
+            next.updatedAt = now;
+            next.updatedBy = state.graderName || 'Giảng viên';
+        }
+        return next;
     });
 
+    state.settingsUpdatedAt = now;
+    state.itemsUpdatedAt = now;
     state.baseScore = round1(baseScore);
     state.courseName = courseName;
     state.unitName = unitName;
@@ -1992,9 +2899,11 @@ async function importFromFile(file) {
         return;
     }
 
+    const rawStudents = (!Array.isArray(payload) && Array.isArray(payload.students)) ? payload.students : [];
+    const students = normalizeStudents(rawStudents);
     const ok = await customConfirm(
         'Nhập Dữ Liệu Sao Lưu',
-        `Thay thế toàn bộ dữ liệu hiện tại bằng ${items.length} trung đội từ file?\nThao tác này không thể hoàn tác.`
+        `Thay thế toàn bộ dữ liệu hiện tại bằng ${items.length} trung đội và ${students.length} sinh viên từ file?\nThao tác này không thể hoàn tác.`
     );
     if (!ok) return;
 
@@ -2004,7 +2913,12 @@ async function importFromFile(file) {
         ? payload.meta
         : null;
 
-    state.items = items;
+    const now = new Date().toISOString();
+    state.items = items.map(item => ({ ...item, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
+    state.students = students.map(student => ({ ...student, updatedAt: now, updatedBy: state.graderName || 'Giảng viên' }));
+    state.studentsUpdatedAt = now;
+    state.itemsUpdatedAt = now;
+    state.settingsUpdatedAt = now;
     state.activeItemId = null;
     state.activeModalIndex = -1;
     if (meta) {
@@ -2014,7 +2928,7 @@ async function importFromFile(file) {
     elements.searchInput.value = '';
     elements.btnClearSearch.style.display = 'none';
 
-    logAudit('Nhập file sao lưu', `${items.length} trung đội từ ${file.name}`);
+    logAudit('Nhập file sao lưu', `${items.length} trung đội, ${students.length} sinh viên từ ${file.name}`);
     updateCalculations();
     applyMetaToUI();
     renderBuildingPills();
@@ -2778,6 +3692,8 @@ function applySheetEntry(item, entry) {
     ['hocTap', 'renLuyen', 'nvvs', 'leTiet'].forEach(field => {
         if (entry[field] !== undefined) item[field] = entry[field];
     });
+    item.updatedAt = new Date().toISOString();
+    item.updatedBy = state.graderName || 'Giảng viên';
 }
 
 async function applySheetImport() {
@@ -2813,6 +3729,7 @@ async function applySheetImport() {
 
     captureSnapshot('Trước khi nhập Excel', true);
 
+    const now = new Date().toISOString();
     let updated = 0;
     let skipped = 0;
 
@@ -2841,9 +3758,12 @@ async function applySheetImport() {
                 leTiet: entry.leTiet !== undefined ? entry.leTiet : 0,
                 note: entry.note !== undefined ? entry.note : '',
                 totalScore: 0,
-                rank: 1
+                rank: 1,
+                updatedAt: now,
+                updatedBy: state.graderName || 'Giảng viên'
             };
         }).sort((a, b) => a.id - b.id);
+        state.itemsUpdatedAt = now;
         updated = state.items.length;
     }
 
@@ -3012,6 +3932,7 @@ function setupEventListeners() {
             return;
         }
         state.autoNegative = !state.autoNegative;
+        state.settingsUpdatedAt = new Date().toISOString();
         logAudit('Đổi cách nhập điểm', state.autoNegative ? 'Bật tự động âm' : 'Tắt tự động âm');
         elements.btnAutoNegative.classList.toggle('active', state.autoNegative);
         elements.btnAutoNegative.querySelector('span').textContent = state.autoNegative ? 'Tự âm (-)' : 'Tự do';
@@ -3044,7 +3965,10 @@ function setupEventListeners() {
             elements.inputThang.value = state.date.thang;
             elements.inputNam.value = state.date.nam;
             const newDate = `${state.date.ngay}/${state.date.thang}/${state.date.nam}`;
-            if (oldDate !== newDate) logAudit('Đổi ngày chấm', `${oldDate} → ${newDate}`);
+            if (oldDate !== newDate) {
+                state.settingsUpdatedAt = new Date().toISOString();
+                logAudit('Đổi ngày chấm', `${oldDate} → ${newDate}`);
+            }
             updatePrintDate();
             saveData();
         });
@@ -3064,7 +3988,10 @@ function setupEventListeners() {
         elements.inputThang.value = state.date.thang;
         elements.inputNam.value = state.date.nam;
         const newDate = `${state.date.ngay}/${state.date.thang}/${state.date.nam}`;
-        if (oldDate !== newDate) logAudit('Đổi ngày chấm', `${oldDate} → ${newDate}`);
+        if (oldDate !== newDate) {
+            state.settingsUpdatedAt = new Date().toISOString();
+            logAudit('Đổi ngày chấm', `${oldDate} → ${newDate}`);
+        }
         updatePrintDate();
         saveData();
         showToast('Đã chọn ngày hôm nay.');
@@ -3118,6 +4045,70 @@ function setupEventListeners() {
         }
     });
 
+    // Students & leaders
+    elements.btnOpenStudents.addEventListener('click', () => openStudentsModal());
+    elements.btnCloseStudents.addEventListener('click', closeStudentsModal);
+    elements.btnCloseStudentsFooter.addEventListener('click', closeStudentsModal);
+    elements.studentsModal.addEventListener('click', event => {
+        if (event.target === elements.studentsModal) closeStudentsModal();
+    });
+    elements.tabStudents.addEventListener('click', () => setStudentTab('students'));
+    elements.tabLeaders.addEventListener('click', () => setStudentTab('leaders'));
+    elements.studentSearch.addEventListener('input', () => {
+        studentUi.query = elements.studentSearch.value;
+        renderStudentRoomList();
+    });
+    elements.studentBuildingFilter.addEventListener('change', () => {
+        studentUi.building = elements.studentBuildingFilter.value;
+        studentUi.room = 'ALL';
+        renderStudentUI();
+    });
+    elements.studentRoomFilter.addEventListener('change', () => {
+        studentUi.room = elements.studentRoomFilter.value;
+        renderStudentUI();
+    });
+    elements.studentPlatoonFilter.addEventListener('change', () => {
+        studentUi.platoon = elements.studentPlatoonFilter.value;
+        renderStudentUI();
+    });
+    elements.btnAddStudent.addEventListener('click', () => openStudentEditor(null, 'Học viên'));
+    elements.btnAddLeader.addEventListener('click', () => {
+        setStudentTab('leaders');
+        openStudentEditor(null, 'Tiểu đội trưởng');
+    });
+    elements.btnCancelStudent.addEventListener('click', closeStudentEditor);
+    elements.btnSaveStudent.addEventListener('click', saveStudentFromForm);
+    elements.btnImportStudents.addEventListener('click', () => elements.studentFileInput.click());
+    elements.studentFileInput.addEventListener('change', async event => {
+        const file = event.target.files && event.target.files[0];
+        await importStudentsFromFile(file);
+        event.target.value = '';
+    });
+    elements.btnExportStudents.addEventListener('click', () => exportStudentCSV(false));
+    elements.btnExportLeaders.addEventListener('click', () => exportStudentCSV(true));
+    elements.studentRoomList.addEventListener('click', async event => {
+        const button = (event.target as HTMLElement).closest('[data-student-action]') as HTMLElement | null;
+        if (!button) return;
+        const id = button.dataset.studentId || '';
+        if (button.dataset.studentAction === 'edit') {
+            const student = state.students.find((entry: Student) => entry.id === id);
+            if (student) openStudentEditor(student);
+        } else if (button.dataset.studentAction === 'delete') {
+            await deleteStudent(id);
+        }
+    });
+    elements.leaderList.addEventListener('click', async event => {
+        const button = (event.target as HTMLElement).closest('[data-leader-action]') as HTMLElement | null;
+        if (!button) return;
+        const id = button.dataset.studentId || '';
+        if (button.dataset.leaderAction === 'edit') {
+            const student = state.students.find((entry: Student) => entry.id === id);
+            if (student) openStudentEditor(student);
+        } else if (button.dataset.leaderAction === 'clear') {
+            clearLeaderPosition(id);
+        }
+    });
+
     // Backups
     elements.btnOpenBackups.addEventListener('click', openBackupModal);
     elements.btnCloseBackups.addEventListener('click', closeBackupModal);
@@ -3148,6 +4139,23 @@ function setupEventListeners() {
     elements.cloudModal.addEventListener('click', event => {
         if (event.target === elements.cloudModal) closeCloudModal();
     });
+
+    // Collaboration
+    elements.btnOpenCollab.addEventListener('click', openCollabModal);
+    elements.btnCloseCollab.addEventListener('click', closeCollabModal);
+    elements.btnCloseCollabFooter.addEventListener('click', closeCollabModal);
+    elements.collabModal.addEventListener('click', event => {
+        if (event.target === elements.collabModal) closeCollabModal();
+    });
+    elements.btnCollabToggle.addEventListener('click', toggleCollab);
+    elements.btnCollabSaveName.addEventListener('click', saveCollabDisplayName);
+    elements.btnCollabPull.addEventListener('click', pullCollabNow);
+    elements.btnCollabPush.addEventListener('click', pushCollabNow);
+    elements.btnCollabConfig.addEventListener('click', () => {
+        closeCollabModal();
+        openCloudModal();
+    });
+    elements.collabIndicator.addEventListener('click', openCollabModal);
 
     // Audit log & score lock
     elements.btnOpenAudit.addEventListener('click', openAuditModal);
@@ -3263,8 +4271,11 @@ function setupEventListeners() {
 
         captureSnapshot('Trước khi nạp dữ liệu mẫu', true);
 
+        const now = new Date().toISOString();
         state.items.forEach(item => {
             const sample = PHOTO_SAMPLE_DATA[item.id];
+            item.updatedAt = now;
+            item.updatedBy = state.graderName || 'Giảng viên';
             if (sample) {
                 item.quanSo = sample.quanSo || item.quanSo;
                 item.hocTap = sample.hocTap || 0;
@@ -3299,12 +4310,15 @@ function setupEventListeners() {
 
         captureSnapshot('Trước khi đặt lại điểm', true);
 
+        const now = new Date().toISOString();
         state.items.forEach(item => {
             item.hocTap = 0;
             item.renLuyen = 0;
             item.nvvs = 0;
             item.leTiet = 0;
             item.note = '';
+            item.updatedAt = now;
+            item.updatedBy = state.graderName || 'Giảng viên';
         });
 
         logAudit('Đặt lại điểm', `Đặt lại điểm và ghi chú của ${state.items.length} trung đội`);
@@ -3380,8 +4394,16 @@ function setupEventListeners() {
                 closeCourseModal();
                 return;
             }
+            if (elements.studentsModal.classList.contains('open')) {
+                closeStudentsModal();
+                return;
+            }
             if (elements.backupModal.classList.contains('open')) {
                 closeBackupModal();
+                return;
+            }
+            if (elements.collabModal.classList.contains('open')) {
+                closeCollabModal();
                 return;
             }
             if (elements.cloudModal.classList.contains('open')) {
@@ -3418,7 +4440,9 @@ function setupEventListeners() {
             || elements.helpModal.classList.contains('open')
             || elements.courseModal.classList.contains('open')
             || elements.backupModal.classList.contains('open')
+            || elements.studentsModal.classList.contains('open')
             || elements.auditModal.classList.contains('open')
+            || elements.collabModal.classList.contains('open')
             || elements.cloudModal.classList.contains('open')) return;
 
         const tagName = String((event.target as HTMLElement).tagName || '').toLowerCase();
@@ -3456,6 +4480,7 @@ function setupConnectivity() {
 // ============================================================
 function initApp() {
     state.cloudConfig = loadCloudConfig();
+    state.collabSettings = loadCollabSettings();
     loadSavedData();
     applyMetaToUI();
     setupEventListeners();
@@ -3463,12 +4488,15 @@ function initApp() {
     renderBuildingPills();
     updateCalculations();
     render();
+    renderCollabUI();
+    maybeStartCollab();
 }
 
 // Global functions for inline onclick handlers
 (window as any).openDrawerById = openDrawerById;
 (window as any).updateItemQuanSo = updateItemQuanSo;
 (window as any).updateItemCat = updateItemCat;
+(window as any).openStudentsForPlatoon = openStudentsForPlatoon;
 
 if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', initApp);
