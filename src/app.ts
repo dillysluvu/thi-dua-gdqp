@@ -23,6 +23,7 @@ import {
 import { parseSheetText, parseSheetFile } from './parsers';
 import { recalculateScores, calculateScoreStats } from './scoring';
 import { mergeCourseRecords } from './merge';
+import { filterQuickGradeItems, type QuickGradeFilter } from './quickGrade';
 import {
     CollabSession,
     loadCollabSettings,
@@ -180,6 +181,20 @@ const elements: Record<string, any> = {
     dropdownMenu: document.getElementById('dropdownMenu'),
     buildingPills: document.getElementById('buildingPills'),
     gradingDrawer: document.getElementById('gradingDrawer'),
+
+    // Quick navigation & quick grade
+    quickNav: document.getElementById('quickNav'),
+    quickNavItems: Array.from(document.querySelectorAll('[data-quick-action]')),
+    statsGrid: document.querySelector('.stats-grid'),
+    listHeading: document.querySelector('.list-heading'),
+    quickGradeModal: document.getElementById('quickGradeModal'),
+    quickGradeSearch: document.getElementById('quickGradeSearch'),
+    quickGradeFilters: document.getElementById('quickGradeFilters'),
+    quickGradeSummary: document.getElementById('quickGradeSummary'),
+    quickGradeList: document.getElementById('quickGradeList'),
+    btnClearQuickGrade: document.getElementById('btnClearQuickGrade'),
+    btnCloseQuickGrade: document.getElementById('btnCloseQuickGrade'),
+    btnCloseQuickGradeFooter: document.getElementById('btnCloseQuickGradeFooter'),
 
     // Stats
     statQuanSo: document.getElementById('statQuanSo'),
@@ -436,6 +451,8 @@ let renderTimer = null;
 let sheetImportState = null;
 let sheetParseTimer = null;
 let sheetSource = 'file';
+let quickGradeFilter: QuickGradeFilter = 'all';
+let quickNavScrollFrame = 0;
 
 interface MappingPreset {
     id: string;
@@ -2640,6 +2657,148 @@ function renderBuildingPills() {
 }
 
 // ============================================================
+// QUICK NAVIGATION & QUICK GRADE
+// ============================================================
+function updateQuickNavActive() {
+    const items = (elements.quickNavItems || []) as HTMLElement[];
+    if (!items.length) return;
+
+    const atTop = window.scrollY < 120;
+    items.forEach(button => {
+        const action = button.dataset.quickAction;
+        const active = action === 'overview'
+            ? atTop
+            : ((action === 'list' && !atTop && state.viewMode === 'cards')
+                || (action === 'table' && !atTop && state.viewMode === 'table'));
+
+        button.classList.toggle('active', active);
+        if (active) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+    });
+}
+
+function setViewMode(mode: 'cards' | 'table', persist = true) {
+    if (state.viewMode !== mode) {
+        state.viewMode = mode;
+        if (elements.viewModeLabel) {
+            elements.viewModeLabel.textContent = state.viewMode === 'cards' ? 'Xem Bảng' : 'Xem Thẻ';
+        }
+        render();
+        if (persist) saveData();
+    } else {
+        updateQuickNavActive();
+    }
+}
+
+function scrollToSection(target: Element | null) {
+    if (!target) return;
+    const header = document.querySelector('.app-header') as HTMLElement | null;
+    const offset = header ? header.getBoundingClientRect().height + 10 : 10;
+    const top = target.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
+
+function handleQuickNav(action: string) {
+    switch (action) {
+        case 'overview':
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            break;
+        case 'list':
+            setViewMode('cards');
+            requestAnimationFrame(() => scrollToSection(elements.listHeading || elements.cardsList));
+            break;
+        case 'table':
+            setViewMode('table');
+            requestAnimationFrame(() => scrollToSection(elements.tableCard));
+            break;
+        case 'grade':
+            openQuickGradeModal();
+            break;
+        case 'students':
+            openStudentsModal();
+            break;
+        case 'report':
+            printReport();
+            break;
+        case 'settings':
+            openSettings();
+            break;
+    }
+    updateQuickNavActive();
+}
+
+function updateQuickGradeFilterButtons() {
+    if (!elements.quickGradeFilters) return;
+    elements.quickGradeFilters.querySelectorAll('[data-qg-filter]').forEach(button => {
+        button.classList.toggle('active', button.getAttribute('data-qg-filter') === quickGradeFilter);
+    });
+}
+
+function renderQuickGradeList() {
+    if (!elements.quickGradeList) return;
+
+    const query = String(elements.quickGradeSearch?.value || '');
+    const filtered = filterQuickGradeItems(state.items, {
+        query,
+        filter: quickGradeFilter,
+        baseScore: state.baseScore
+    });
+    const deductedCount = filtered.filter(item => item.totalScore < state.baseScore).length;
+    const cleanCount = filtered.length - deductedCount;
+
+    if (elements.quickGradeSummary) {
+        elements.quickGradeSummary.textContent = filtered.length
+            ? `${filtered.length} trung đội · ${deductedCount} đã trừ điểm · ${cleanCount} đạt điểm gốc`
+            : 'Không có trung đội phù hợp';
+    }
+
+    if (!filtered.length) {
+        elements.quickGradeList.innerHTML = `<div class="quick-grade-empty">Không tìm thấy trung đội phù hợp.<br>Thử xóa từ khóa hoặc chọn bộ lọc khác.</div>`;
+        return;
+    }
+
+    elements.quickGradeList.innerHTML = filtered.map(item => {
+        const deducted = item.totalScore < state.baseScore;
+        const note = String(item.note || '').trim();
+        const noteHtml = note ? `<span class="qg-note" title="${escapeHtml(note)}">✎</span>` : '';
+        const studentCount = countStudentsForPlatoon(state.students, item);
+        const actionLabel = state.locked ? 'Xem' : 'Chấm';
+
+        return `
+            <button type="button" class="quick-grade-row" data-quick-grade-id="${item.id}" aria-label="Trung đội ${item.id}, ${escapeHtml(item.building || 'chưa xếp tòa')}">
+                <span class="qg-id">TĐ ${item.id}</span>
+                <span class="qg-main">
+                    <strong>${escapeHtml(item.building || 'Chưa xếp tòa')}${noteHtml}</strong>
+                    <small>P. ${escapeHtml(item.rooms || '—')} · ${studentCount} SV</small>
+                </span>
+                <span class="qg-score${deducted ? ' deducted' : ''}">${formatNum(item.totalScore)}<small>Hạng ${item.rank}</small></span>
+                <span class="qg-action">${actionLabel}</span>
+            </button>
+        `;
+    }).join('');
+}
+
+function openQuickGradeModal() {
+    quickGradeFilter = 'all';
+    if (elements.quickGradeSearch) elements.quickGradeSearch.value = '';
+    if (elements.btnClearQuickGrade) elements.btnClearQuickGrade.hidden = true;
+    updateQuickGradeFilterButtons();
+    renderQuickGradeList();
+    elements.quickGradeModal.classList.add('open');
+    setTimeout(() => elements.quickGradeSearch?.focus(), 80);
+}
+
+function closeQuickGradeModal() {
+    elements.quickGradeModal.classList.remove('open');
+}
+
+function openQuickGradeItem(id: number) {
+    if (!state.items.some(item => item.id === id)) return;
+    closeQuickGradeModal();
+    openDrawerById(id);
+}
+
+// ============================================================
 // RENDER: CARDS / TABLE
 // ============================================================
 function render() {
@@ -2657,6 +2816,7 @@ function render() {
         elements.tableCard.style.display = 'block';
         renderTable(filtered);
     }
+    updateQuickNavActive();
 }
 
 function scheduleRender() {
@@ -2781,8 +2941,21 @@ function getActiveItem() {
 }
 
 function openDrawerById(id) {
-    const filtered = getFilteredItems();
-    const index = filtered.findIndex(item => item.id === id);
+    let filtered = getFilteredItems();
+    let index = filtered.findIndex(item => item.id === id);
+
+    // Nếu trung đội đang bị ẩn bởi bộ lọc/tìm kiếm (ví dụ mở từ "Chấm riêng"),
+    // tạm đưa danh sách về trạng thái đầy đủ để phiếu chấm luôn mở được.
+    if (index === -1) {
+        state.searchQuery = '';
+        state.activeBuilding = 'ALL';
+        if (elements.searchInput) elements.searchInput.value = '';
+        if (elements.btnClearSearch) elements.btnClearSearch.style.display = 'none';
+        renderBuildingPills();
+        render();
+        filtered = getFilteredItems();
+        index = filtered.findIndex(item => item.id === id);
+    }
     if (index === -1) return;
 
     state.activeItemId = id;
@@ -4363,13 +4536,60 @@ function customPrompt(title: string, message: string, defaultValue = ''): Promis
 // EVENT LISTENERS
 // ============================================================
 function setupEventListeners() {
+    // Quick navigation
+    if (elements.quickNav) {
+        elements.quickNav.addEventListener('click', event => {
+            const button = (event.target as HTMLElement).closest('[data-quick-action]') as HTMLElement | null;
+            if (!button) return;
+            handleQuickNav(button.dataset.quickAction || '');
+        });
+    }
+
     // View mode
     elements.btnToggleView.addEventListener('click', () => {
-        state.viewMode = state.viewMode === 'cards' ? 'table' : 'cards';
-        elements.viewModeLabel.textContent = state.viewMode === 'cards' ? 'Xem Bảng' : 'Xem Thẻ';
-        render();
-        saveData();
+        setViewMode(state.viewMode === 'cards' ? 'table' : 'cards');
     });
+
+    // Quick grade picker
+    elements.btnCloseQuickGrade.addEventListener('click', closeQuickGradeModal);
+    elements.btnCloseQuickGradeFooter.addEventListener('click', closeQuickGradeModal);
+    elements.quickGradeModal.addEventListener('click', event => {
+        if (event.target === elements.quickGradeModal) closeQuickGradeModal();
+    });
+    elements.quickGradeSearch.addEventListener('input', () => {
+        if (elements.btnClearQuickGrade) {
+            elements.btnClearQuickGrade.hidden = !elements.quickGradeSearch.value;
+        }
+        renderQuickGradeList();
+    });
+    elements.btnClearQuickGrade.addEventListener('click', () => {
+        elements.quickGradeSearch.value = '';
+        elements.btnClearQuickGrade.hidden = true;
+        renderQuickGradeList();
+        elements.quickGradeSearch.focus();
+    });
+    elements.quickGradeFilters.addEventListener('click', event => {
+        const button = (event.target as HTMLElement).closest('[data-qg-filter]') as HTMLElement | null;
+        if (!button) return;
+        quickGradeFilter = (button.dataset.qgFilter || 'all') as QuickGradeFilter;
+        updateQuickGradeFilterButtons();
+        renderQuickGradeList();
+    });
+    elements.quickGradeList.addEventListener('click', event => {
+        const row = (event.target as HTMLElement).closest('[data-quick-grade-id]') as HTMLElement | null;
+        if (!row) return;
+        const id = Number(row.dataset.quickGradeId);
+        if (Number.isInteger(id)) openQuickGradeItem(id);
+    });
+
+    // Keep the quick navigation highlight in sync while scrolling
+    window.addEventListener('scroll', () => {
+        if (quickNavScrollFrame) return;
+        quickNavScrollFrame = window.requestAnimationFrame(() => {
+            quickNavScrollFrame = 0;
+            updateQuickNavActive();
+        });
+    }, { passive: true });
 
     // Dropdown menu
     elements.btnMenuToggle.addEventListener('click', event => {
@@ -4946,6 +5166,10 @@ function setupEventListeners() {
         if (elements.customDialog.classList.contains('open')) return;
 
         if (event.key === 'Escape') {
+            if (elements.quickGradeModal.classList.contains('open')) {
+                closeQuickGradeModal();
+                return;
+            }
             if (elements.courseModal.classList.contains('open')) {
                 closeCourseModal();
                 return;
@@ -4997,6 +5221,7 @@ function setupEventListeners() {
             || elements.courseModal.classList.contains('open')
             || elements.backupModal.classList.contains('open')
             || elements.studentsModal.classList.contains('open')
+            || elements.quickGradeModal.classList.contains('open')
             || elements.auditModal.classList.contains('open')
             || elements.collabModal.classList.contains('open')
             || elements.cloudModal.classList.contains('open')) return;

@@ -13,6 +13,8 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 ### Chấm điểm và quản lý khóa
 
 - Chấm điểm từng trung đội theo học tập, rèn luyện, nội vụ vệ sinh, lễ tiết.
+- Thanh truy cập nhanh ngay dưới header: **Tổng quan, Danh sách, Bảng điểm, Chấm riêng, Sinh viên, Báo cáo, Cài đặt**; tự cuộn ngang gọn trên điện thoại.
+- **Chấm riêng** mở bảng chọn nhanh trung đội với tìm kiếm theo số TĐ/phòng/tòa/ghi chú và bộ lọc *đã trừ điểm, chưa trừ, có ghi chú*, sau đó mở thẳng phiếu chấm.
 - Trừ điểm nhanh, ghi chú lý do, tự động tính tổng điểm và xếp hạng.
 - Tìm kiếm không dấu theo số trung đội, tòa nhà, phòng hoặc ghi chú.
 - Lọc theo tòa, đổi kiểu xem bảng/thẻ.
