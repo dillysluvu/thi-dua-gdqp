@@ -23,7 +23,6 @@ import {
 import { parseSheetText, parseSheetFile } from './parsers';
 import { recalculateScores, calculateScoreStats } from './scoring';
 import { mergeCourseRecords } from './merge';
-import { filterQuickGradeItems, type QuickGradeFilter } from './quickGrade';
 import {
     CollabSession,
     loadCollabSettings,
@@ -175,26 +174,16 @@ const elements: Record<string, any> = {
     searchInput: document.getElementById('searchInput'),
     btnClearSearch: document.getElementById('btnClearSearch'),
     btnAutoNegative: document.getElementById('btnAutoNegative'),
-    btnToggleView: document.getElementById('btnToggleView'),
-    viewModeLabel: document.getElementById('viewModeLabel'),
-    btnMenuToggle: document.getElementById('btnMenuToggle'),
     dropdownMenu: document.getElementById('dropdownMenu'),
     buildingPills: document.getElementById('buildingPills'),
     gradingDrawer: document.getElementById('gradingDrawer'),
 
-    // Quick navigation & quick grade
+    // Menubar
     quickNav: document.getElementById('quickNav'),
     quickNavItems: Array.from(document.querySelectorAll('[data-quick-action]')),
+    navToolsButton: document.querySelector('[data-quick-action="tools"]'),
     statsGrid: document.querySelector('.stats-grid'),
     listHeading: document.querySelector('.list-heading'),
-    quickGradeModal: document.getElementById('quickGradeModal'),
-    quickGradeSearch: document.getElementById('quickGradeSearch'),
-    quickGradeFilters: document.getElementById('quickGradeFilters'),
-    quickGradeSummary: document.getElementById('quickGradeSummary'),
-    quickGradeList: document.getElementById('quickGradeList'),
-    btnClearQuickGrade: document.getElementById('btnClearQuickGrade'),
-    btnCloseQuickGrade: document.getElementById('btnCloseQuickGrade'),
-    btnCloseQuickGradeFooter: document.getElementById('btnCloseQuickGradeFooter'),
 
     // Stats
     statQuanSo: document.getElementById('statQuanSo'),
@@ -268,6 +257,7 @@ const elements: Record<string, any> = {
     studentBulkBar: document.getElementById('studentBulkBar'),
     studentSelectedCount: document.getElementById('studentSelectedCount'),
     btnSelectVisible: document.getElementById('btnSelectVisible'),
+    btnResetStudentFilters: document.getElementById('btnResetStudentFilters'),
     studentBulkPosition: document.getElementById('studentBulkPosition'),
     btnBulkAssign: document.getElementById('btnBulkAssign'),
     btnBulkDelete: document.getElementById('btnBulkDelete'),
@@ -281,7 +271,6 @@ const elements: Record<string, any> = {
     leaderList: document.getElementById('leaderList'),
     tabStudents: document.getElementById('tabStudents'),
     tabLeaders: document.getElementById('tabLeaders'),
-    btnOpenStudents: document.getElementById('btnOpenStudents'),
     btnCloseStudents: document.getElementById('btnCloseStudents'),
     btnCloseStudentsFooter: document.getElementById('btnCloseStudentsFooter'),
     btnAddStudent: document.getElementById('btnAddStudent'),
@@ -416,7 +405,6 @@ const elements: Record<string, any> = {
     btnImportJSON: document.getElementById('btnImportJSON'),
     btnExportJSON: document.getElementById('btnExportJSON'),
     btnExportCSV: document.getElementById('btnExportCSV'),
-    btnPrintReport: document.getElementById('btnPrintReport'),
     printUnit: document.getElementById('printUnit'),
     printCourse: document.getElementById('printCourse'),
     printNgay: document.getElementById('printNgay'),
@@ -451,7 +439,6 @@ let renderTimer = null;
 let sheetImportState = null;
 let sheetParseTimer = null;
 let sheetSource = 'file';
-let quickGradeFilter: QuickGradeFilter = 'all';
 let quickNavScrollFrame = 0;
 
 interface MappingPreset {
@@ -774,7 +761,6 @@ function applyMetaToUI() {
 
     elements.btnAutoNegative.classList.toggle('active', state.autoNegative);
     elements.btnAutoNegative.querySelector('span').textContent = state.autoNegative ? 'Tự âm (-)' : 'Tự do';
-    elements.viewModeLabel.textContent = state.viewMode === 'cards' ? 'Xem Bảng' : 'Xem Thẻ';
 
     elements.printCourse.textContent = state.courseName;
     elements.printUnit.textContent = state.unitName;
@@ -1100,6 +1086,26 @@ function getFilteredStudents(): Student[] {
     });
 }
 
+function hasActiveStudentFilters(): boolean {
+    return Boolean(String(studentUi.query || '').trim())
+        || studentUi.building !== 'ALL'
+        || studentUi.room !== 'ALL'
+        || studentUi.platoon !== 'ALL'
+        || studentUi.tieuDoi !== 'ALL'
+        || studentUi.quick !== 'all';
+}
+
+function resetStudentFilters(): void {
+    studentUi.query = '';
+    studentUi.building = 'ALL';
+    studentUi.room = 'ALL';
+    studentUi.platoon = 'ALL';
+    studentUi.tieuDoi = 'ALL';
+    studentUi.quick = 'all';
+    if (elements.studentSearch) elements.studentSearch.value = '';
+    renderStudentUI();
+}
+
 function renderStudentFilters() {
     const buildings = state.students.map((student: Student) => student.building)
         .concat(state.items.map((item: any) => item.building));
@@ -1378,6 +1384,7 @@ function renderStudentRoomList() {
     elements.studentQuickLeaders?.classList.toggle('active', studentUi.quick === 'leaders');
     elements.studentQuickNoRoom?.classList.toggle('active', studentUi.quick === 'noRoom');
     elements.studentQuickNoPlatoon?.classList.toggle('active', studentUi.quick === 'noPlatoon');
+    if (elements.btnResetStudentFilters) elements.btnResetStudentFilters.hidden = !hasActiveStudentFilters();
     renderStudentBulkBar(students);
 
     if (!groups.length) {
@@ -1395,9 +1402,13 @@ function renderStudentRoomList() {
     elements.studentRoomList.innerHTML = groups.map(group => {
         if (usePlatoon) {
             const platoonGroup = group as ReturnType<typeof groupStudentsByPlatoon>[number];
+            const leaderCount = platoonGroup.students.filter(student => isLeaderPosition(student.position)).length;
+            const noRoomCount = platoonGroup.students.filter(student => !String(student.room || '').trim()).length;
             const unitInfo = [
                 platoonGroup.tieuDois.length ? `Tiểu đội ${platoonGroup.tieuDois.join(', ')}` : '',
-                platoonGroup.rooms.length ? `Phòng ${platoonGroup.rooms.slice(0, 6).join(', ')}${platoonGroup.rooms.length > 6 ? '…' : ''}` : ''
+                platoonGroup.rooms.length ? `Phòng ${platoonGroup.rooms.slice(0, 6).join(', ')}${platoonGroup.rooms.length > 6 ? '…' : ''}` : '',
+                leaderCount ? `${leaderCount} cán sự` : '',
+                noRoomCount ? `${noRoomCount} chưa phòng` : ''
             ].filter(Boolean).join(' · ');
             return `
                 <section class="student-room-group student-platoon-group">
@@ -1413,9 +1424,13 @@ function renderStudentRoomList() {
             `;
         }
         const roomGroup = group as ReturnType<typeof groupStudentsByRoom>[number];
+        const leaderCount = roomGroup.students.filter(student => isLeaderPosition(student.position)).length;
+        const noPlatoonCount = roomGroup.students.filter(student => !String(student.trungDoi || '').trim()).length;
         const unitInfo = [
             roomGroup.trungDois.length ? `TĐ ${roomGroup.trungDois.join(', ')}` : '',
-            roomGroup.tieuDois.length ? `Tiểu đội ${roomGroup.tieuDois.join(', ')}` : ''
+            roomGroup.tieuDois.length ? `Tiểu đội ${roomGroup.tieuDois.join(', ')}` : '',
+            leaderCount ? `${leaderCount} cán sự` : '',
+            noPlatoonCount ? `${noPlatoonCount} chưa TĐ` : ''
         ].filter(Boolean).join(' · ');
         return `
             <section class="student-room-group">
@@ -1506,11 +1521,13 @@ function openStudentsModal(options: { platoonId?: string; tab?: 'students' | 'le
     renderStudentUI();
     elements.studentsModal.classList.add('open');
     closeStudentEditor();
+    updateQuickNavActive();
 }
 
 function closeStudentsModal() {
     elements.studentsModal.classList.remove('open');
     closeStudentEditor();
+    updateQuickNavActive();
 }
 
 function setStudentTab(tab: 'students' | 'leaders') {
@@ -2657,19 +2674,26 @@ function renderBuildingPills() {
 }
 
 // ============================================================
-// QUICK NAVIGATION & QUICK GRADE
+// MENUBAR NAVIGATION
 // ============================================================
 function updateQuickNavActive() {
     const items = (elements.quickNavItems || []) as HTMLElement[];
     if (!items.length) return;
 
     const atTop = window.scrollY < 120;
+    const toolsOpen = Boolean(elements.dropdownMenu?.classList.contains('show'));
+    const studentsOpen = Boolean(elements.studentsModal?.classList.contains('open'));
+    const settingsOpen = Boolean(elements.settingsModal?.classList.contains('open'));
+
     items.forEach(button => {
         const action = button.dataset.quickAction;
-        const active = action === 'overview'
-            ? atTop
-            : ((action === 'list' && !atTop && state.viewMode === 'cards')
-                || (action === 'table' && !atTop && state.viewMode === 'table'));
+        let active = false;
+        if (toolsOpen) active = action === 'tools';
+        else if (studentsOpen) active = action === 'students';
+        else if (settingsOpen) active = action === 'settings';
+        else if (action === 'overview') active = atTop;
+        else if (action === 'list') active = !atTop && state.viewMode === 'cards';
+        else if (action === 'table') active = !atTop && state.viewMode === 'table';
 
         button.classList.toggle('active', active);
         if (active) button.setAttribute('aria-current', 'page');
@@ -2677,12 +2701,24 @@ function updateQuickNavActive() {
     });
 }
 
+function closeToolsMenu() {
+    if (!elements.dropdownMenu) return;
+    elements.dropdownMenu.classList.remove('show');
+    elements.navToolsButton?.setAttribute('aria-expanded', 'false');
+    updateQuickNavActive();
+}
+
+function toggleToolsMenu() {
+    if (!elements.dropdownMenu) return;
+    const open = !elements.dropdownMenu.classList.contains('show');
+    elements.dropdownMenu.classList.toggle('show', open);
+    elements.navToolsButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    updateQuickNavActive();
+}
+
 function setViewMode(mode: 'cards' | 'table', persist = true) {
     if (state.viewMode !== mode) {
         state.viewMode = mode;
-        if (elements.viewModeLabel) {
-            elements.viewModeLabel.textContent = state.viewMode === 'cards' ? 'Xem Bảng' : 'Xem Thẻ';
-        }
         render();
         if (persist) saveData();
     } else {
@@ -2699,6 +2735,8 @@ function scrollToSection(target: Element | null) {
 }
 
 function handleQuickNav(action: string) {
+    if (action !== 'tools') closeToolsMenu();
+
     switch (action) {
         case 'overview':
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2711,11 +2749,11 @@ function handleQuickNav(action: string) {
             setViewMode('table');
             requestAnimationFrame(() => scrollToSection(elements.tableCard));
             break;
-        case 'grade':
-            openQuickGradeModal();
-            break;
         case 'students':
             openStudentsModal();
+            break;
+        case 'tools':
+            toggleToolsMenu();
             break;
         case 'report':
             printReport();
@@ -2725,77 +2763,6 @@ function handleQuickNav(action: string) {
             break;
     }
     updateQuickNavActive();
-}
-
-function updateQuickGradeFilterButtons() {
-    if (!elements.quickGradeFilters) return;
-    elements.quickGradeFilters.querySelectorAll('[data-qg-filter]').forEach(button => {
-        button.classList.toggle('active', button.getAttribute('data-qg-filter') === quickGradeFilter);
-    });
-}
-
-function renderQuickGradeList() {
-    if (!elements.quickGradeList) return;
-
-    const query = String(elements.quickGradeSearch?.value || '');
-    const filtered = filterQuickGradeItems(state.items, {
-        query,
-        filter: quickGradeFilter,
-        baseScore: state.baseScore
-    });
-    const deductedCount = filtered.filter(item => item.totalScore < state.baseScore).length;
-    const cleanCount = filtered.length - deductedCount;
-
-    if (elements.quickGradeSummary) {
-        elements.quickGradeSummary.textContent = filtered.length
-            ? `${filtered.length} trung đội · ${deductedCount} đã trừ điểm · ${cleanCount} đạt điểm gốc`
-            : 'Không có trung đội phù hợp';
-    }
-
-    if (!filtered.length) {
-        elements.quickGradeList.innerHTML = `<div class="quick-grade-empty">Không tìm thấy trung đội phù hợp.<br>Thử xóa từ khóa hoặc chọn bộ lọc khác.</div>`;
-        return;
-    }
-
-    elements.quickGradeList.innerHTML = filtered.map(item => {
-        const deducted = item.totalScore < state.baseScore;
-        const note = String(item.note || '').trim();
-        const noteHtml = note ? `<span class="qg-note" title="${escapeHtml(note)}">✎</span>` : '';
-        const studentCount = countStudentsForPlatoon(state.students, item);
-        const actionLabel = state.locked ? 'Xem' : 'Chấm';
-
-        return `
-            <button type="button" class="quick-grade-row" data-quick-grade-id="${item.id}" aria-label="Trung đội ${item.id}, ${escapeHtml(item.building || 'chưa xếp tòa')}">
-                <span class="qg-id">TĐ ${item.id}</span>
-                <span class="qg-main">
-                    <strong>${escapeHtml(item.building || 'Chưa xếp tòa')}${noteHtml}</strong>
-                    <small>P. ${escapeHtml(item.rooms || '—')} · ${studentCount} SV</small>
-                </span>
-                <span class="qg-score${deducted ? ' deducted' : ''}">${formatNum(item.totalScore)}<small>Hạng ${item.rank}</small></span>
-                <span class="qg-action">${actionLabel}</span>
-            </button>
-        `;
-    }).join('');
-}
-
-function openQuickGradeModal() {
-    quickGradeFilter = 'all';
-    if (elements.quickGradeSearch) elements.quickGradeSearch.value = '';
-    if (elements.btnClearQuickGrade) elements.btnClearQuickGrade.hidden = true;
-    updateQuickGradeFilterButtons();
-    renderQuickGradeList();
-    elements.quickGradeModal.classList.add('open');
-    setTimeout(() => elements.quickGradeSearch?.focus(), 80);
-}
-
-function closeQuickGradeModal() {
-    elements.quickGradeModal.classList.remove('open');
-}
-
-function openQuickGradeItem(id: number) {
-    if (!state.items.some(item => item.id === id)) return;
-    closeQuickGradeModal();
-    openDrawerById(id);
 }
 
 // ============================================================
@@ -2944,7 +2911,7 @@ function openDrawerById(id) {
     let filtered = getFilteredItems();
     let index = filtered.findIndex(item => item.id === id);
 
-    // Nếu trung đội đang bị ẩn bởi bộ lọc/tìm kiếm (ví dụ mở từ "Chấm riêng"),
+    // Nếu trung đội đang bị ẩn bởi bộ lọc/tìm kiếm,
     // tạm đưa danh sách về trạng thái đầy đủ để phiếu chấm luôn mở được.
     if (index === -1) {
         state.searchQuery = '';
@@ -3215,11 +3182,13 @@ function openSettings() {
     elements.settingsError.classList.remove('show');
     elements.settingsError.textContent = '';
     elements.settingsModal.classList.add('open');
+    updateQuickNavActive();
     setTimeout(() => elements.setCourseName.focus(), 60);
 }
 
 function closeSettings() {
     elements.settingsModal.classList.remove('open');
+    updateQuickNavActive();
 }
 
 function showSettingsError(errors) {
@@ -4541,48 +4510,12 @@ function setupEventListeners() {
         elements.quickNav.addEventListener('click', event => {
             const button = (event.target as HTMLElement).closest('[data-quick-action]') as HTMLElement | null;
             if (!button) return;
+            if (button.dataset.quickAction === 'tools') event.stopPropagation();
             handleQuickNav(button.dataset.quickAction || '');
         });
     }
 
-    // View mode
-    elements.btnToggleView.addEventListener('click', () => {
-        setViewMode(state.viewMode === 'cards' ? 'table' : 'cards');
-    });
-
-    // Quick grade picker
-    elements.btnCloseQuickGrade.addEventListener('click', closeQuickGradeModal);
-    elements.btnCloseQuickGradeFooter.addEventListener('click', closeQuickGradeModal);
-    elements.quickGradeModal.addEventListener('click', event => {
-        if (event.target === elements.quickGradeModal) closeQuickGradeModal();
-    });
-    elements.quickGradeSearch.addEventListener('input', () => {
-        if (elements.btnClearQuickGrade) {
-            elements.btnClearQuickGrade.hidden = !elements.quickGradeSearch.value;
-        }
-        renderQuickGradeList();
-    });
-    elements.btnClearQuickGrade.addEventListener('click', () => {
-        elements.quickGradeSearch.value = '';
-        elements.btnClearQuickGrade.hidden = true;
-        renderQuickGradeList();
-        elements.quickGradeSearch.focus();
-    });
-    elements.quickGradeFilters.addEventListener('click', event => {
-        const button = (event.target as HTMLElement).closest('[data-qg-filter]') as HTMLElement | null;
-        if (!button) return;
-        quickGradeFilter = (button.dataset.qgFilter || 'all') as QuickGradeFilter;
-        updateQuickGradeFilterButtons();
-        renderQuickGradeList();
-    });
-    elements.quickGradeList.addEventListener('click', event => {
-        const row = (event.target as HTMLElement).closest('[data-quick-grade-id]') as HTMLElement | null;
-        if (!row) return;
-        const id = Number(row.dataset.quickGradeId);
-        if (Number.isInteger(id)) openQuickGradeItem(id);
-    });
-
-    // Keep the quick navigation highlight in sync while scrolling
+    // Keep the menubar highlight in sync while scrolling
     window.addEventListener('scroll', () => {
         if (quickNavScrollFrame) return;
         quickNavScrollFrame = window.requestAnimationFrame(() => {
@@ -4591,12 +4524,8 @@ function setupEventListeners() {
         });
     }, { passive: true });
 
-    // Dropdown menu
-    elements.btnMenuToggle.addEventListener('click', event => {
-        event.stopPropagation();
-        elements.dropdownMenu.classList.toggle('show');
-    });
-    document.addEventListener('click', () => elements.dropdownMenu.classList.remove('show'));
+    // Menubar tools panel
+    document.addEventListener('click', () => closeToolsMenu());
 
     // Search
     elements.searchInput.addEventListener('input', event => {
@@ -4732,7 +4661,6 @@ function setupEventListeners() {
     });
 
     // Students & leaders
-    elements.btnOpenStudents.addEventListener('click', () => openStudentsModal());
     elements.btnCloseStudents.addEventListener('click', closeStudentsModal);
     elements.btnCloseStudentsFooter.addEventListener('click', closeStudentsModal);
     elements.studentsModal.addEventListener('click', event => {
@@ -4768,6 +4696,7 @@ function setupEventListeners() {
         studentUi.quick = 'noPlatoon';
         renderStudentRoomList();
     });
+    elements.btnResetStudentFilters?.addEventListener('click', resetStudentFilters);
     elements.studentBuildingFilter.addEventListener('change', () => {
         studentUi.building = elements.studentBuildingFilter.value;
         studentUi.room = 'ALL';
@@ -4951,7 +4880,6 @@ function setupEventListeners() {
     });
 
     // Settings & help
-    document.getElementById('btnOpenSettings').addEventListener('click', openSettings);
     elements.btnCloseSettings.addEventListener('click', closeSettings);
     elements.btnCancelSettings.addEventListener('click', closeSettings);
     elements.btnSaveSettings.addEventListener('click', saveSettings);
@@ -5031,7 +4959,6 @@ function setupEventListeners() {
     });
     elements.btnExportJSON.addEventListener('click', exportJSON);
     elements.btnExportCSV.addEventListener('click', exportCSV);
-    elements.btnPrintReport.addEventListener('click', printReport);
 
     // Sample data
     document.getElementById('btnLoadSample').addEventListener('click', async () => {
@@ -5166,10 +5093,6 @@ function setupEventListeners() {
         if (elements.customDialog.classList.contains('open')) return;
 
         if (event.key === 'Escape') {
-            if (elements.quickGradeModal.classList.contains('open')) {
-                closeQuickGradeModal();
-                return;
-            }
             if (elements.courseModal.classList.contains('open')) {
                 closeCourseModal();
                 return;
@@ -5210,7 +5133,7 @@ function setupEventListeners() {
                 closeDrawer();
                 return;
             }
-            elements.dropdownMenu.classList.remove('show');
+            closeToolsMenu();
             return;
         }
 
@@ -5221,7 +5144,6 @@ function setupEventListeners() {
             || elements.courseModal.classList.contains('open')
             || elements.backupModal.classList.contains('open')
             || elements.studentsModal.classList.contains('open')
-            || elements.quickGradeModal.classList.contains('open')
             || elements.auditModal.classList.contains('open')
             || elements.collabModal.classList.contains('open')
             || elements.cloudModal.classList.contains('open')) return;

@@ -43,11 +43,11 @@ Nếu không đặt `ACCESS_CODE`, server tự tạo mã và lưu vào `DATA_DIR
 ## Cấu hình trong ứng dụng
 
 1. Mở ứng dụng (GitHub Pages hoặc chính địa chỉ máy chủ).
-2. Vào **⋮ → Kết Nối Chia Sẻ**.
+2. Vào menubar **Công cụ → Kết Nối Chia Sẻ**.
 3. Chọn **Máy chủ riêng**.
 4. Nhập địa chỉ máy chủ, mã truy cập và **mã nhóm / bản dùng chung**.
 5. Bấm **Kiểm tra kết nối**.
-6. Vào **⋮ → Cộng Tác Nhóm**, nhập tên hiển thị rồi bật cộng tác.
+6. Vào menubar **Công cụ → Cộng Tác Nhóm**, nhập tên hiển thị rồi bật cộng tác.
 
 Mọi người phải dùng cùng địa chỉ, mã truy cập và mã nhóm. Với máy chủ riêng, **mã nhóm cũng là mã bản dùng chung**: cùng mã nhóm sẽ thấy cùng một bản dữ liệu, dù mã khóa lưu cục bộ trên từng máy khác nhau.
 

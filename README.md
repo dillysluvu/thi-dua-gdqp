@@ -13,8 +13,8 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 ### Chấm điểm và quản lý khóa
 
 - Chấm điểm từng trung đội theo học tập, rèn luyện, nội vụ vệ sinh, lễ tiết.
-- Thanh truy cập nhanh ngay dưới header: **Tổng quan, Danh sách, Bảng điểm, Chấm riêng, Sinh viên, Báo cáo, Cài đặt**; tự cuộn ngang gọn trên điện thoại.
-- **Chấm riêng** mở bảng chọn nhanh trung đội với tìm kiếm theo số TĐ/phòng/tòa/ghi chú và bộ lọc *đã trừ điểm, chưa trừ, có ghi chú*, sau đó mở thẳng phiếu chấm.
+- Menubar ngay dưới header: **Tổng quan, Danh sách, Bảng điểm, Sinh viên, Công cụ, Báo cáo, Cài đặt**; tự cuộn ngang gọn trên điện thoại.
+- Mục **Công cụ** trên menubar gom quản lý khóa học, nhập/xuất dữ liệu, sao lưu, kết nối chia sẻ, cộng tác, nhật ký/khóa sổ và hướng dẫn; bỏ các nút trùng lặp ở header cũ.
 - Trừ điểm nhanh, ghi chú lý do, tự động tính tổng điểm và xếp hạng.
 - Tìm kiếm không dấu theo số trung đội, tòa nhà, phòng hoặc ghi chú.
 - Lọc theo tòa, đổi kiểu xem bảng/thẻ.
@@ -24,7 +24,7 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 
 ### Danh sách sinh viên và ban cán sự
 
-- Mở menu **⋮ → Danh Sách Sinh Viên & Cán Sự**.
+- Mở menubar **Sinh viên**.
 - Nhập danh sách từ Excel/CSV với các cột họ tên, mã SV, tòa, phòng, tiểu đội, trung đội, chức vụ, số điện thoại, ghi chú; giữ thêm lớp, trường, ngày sinh, nơi sinh, giới tính, dân tộc, CCCD nếu có.
 - Hỗ trợ mẫu **biên chế nhiều tiểu đội** của nhà trường: tự đọc từng khối “Danh sách biên chế tiểu đội”, ghép họ tên từ hai cột, nhận trung đội/tiểu đội/phòng/tòa và **giữ nguyên số tiểu đội gốc** liên tục (1, 2, 3, ... 168), không reset về 1–3 trong từng trung đội.
 - Có thể chọn **nhiều file .xls/.xlsx cùng lúc** để nhập gộp (ví dụ file ĐHKT và file HVMM).
@@ -65,20 +65,20 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 
 ## Dùng cho khóa sau
 
-1. Vào menu **⋮ → Quản Lý Khóa Học**.
+1. Vào menubar **Công cụ → Quản Lý Khóa Học**.
 2. Bấm **Tạo khóa mới**, nhập tên khóa (ví dụ `K338`), hoặc **Nhân bản** khóa hiện tại nếu muốn giữ cấu hình tòa/phòng/quân số.
 3. Chọn khóa vừa tạo ở ô **Khóa** trên header.
-4. Vào **⋮ → Cấu Hình Khóa Học** để đổi đơn vị, điểm gốc, ngày chấm và danh sách trung đội.
+4. Vào menubar **Cài đặt** để đổi đơn vị, điểm gốc, ngày chấm và danh sách trung đội.
 5. Nhập Excel của khóa mới hoặc chỉnh trực tiếp trên giao diện.
-6. Vào **⋮ → Danh Sách Sinh Viên & Cán Sự** để nhập danh sách sinh viên và gán chức vụ ban cán sự.
-7. Sau khi chấm xong, vào **⋮ → Nhật Ký & Khóa Sổ** để khóa sổ.
+6. Vào menubar **Sinh viên** để nhập danh sách sinh viên và gán chức vụ ban cán sự.
+7. Sau khi chấm xong, vào menubar **Công cụ → Nhật Ký & Khóa Sổ** để khóa sổ.
 8. Xuất **File Sao Lưu (.json)** để lưu thêm ra ngoài thiết bị.
 
 > Mỗi thiết bị/trình duyệt có vùng dữ liệu riêng. Nên xuất `.json` định kỳ và trước khi đổi máy.
 
 ## Nhập Excel / Google Sheets
 
-Vào menu **⋮ → Nhập Excel / Google Sheets**.
+Vào menubar **Công cụ → Nhập Excel / Google Sheets**.
 
 - File Excel nhiều sheet: chọn **Trang tính** cần nhập.
 - Bảng điểm nên có dòng tiêu đề với các cột: `TĐ`, `Tòa`, `Phòng`, `Quân số`, `Học tập`, `Rèn luyện`, `NVVS`, `Lễ tiết`, `Ghi chú`.
@@ -89,7 +89,7 @@ Vào menu **⋮ → Nhập Excel / Google Sheets**.
 
 ## Nhập danh sách sinh viên
 
-Vào menu **⋮ → Danh Sách Sinh Viên & Cán Sự → Nhập Excel/CSV**.
+Vào menubar **Sinh viên → Nhập Excel/CSV**.
 
 - Cột bắt buộc: **Họ tên**. Các cột còn lại là tùy chọn.
 - Tên cột được nhận diện tự động: `Họ tên`, `Mã SV`, `Tòa`, `Phòng`, `Tiểu đội`, `Trung đội`, `Chức vụ`, `SĐT`, `Ghi chú`, `Lớp`, `Trường`, `Ngày sinh`, `Nơi sinh`, `Giới tính`, `Dân tộc`, `CCCD`.
@@ -125,7 +125,7 @@ MAX_DATA_BYTES=10737418240 \
 npm run server
 ```
 
-Mở `http://127.0.0.1:8787`, vào **⋮ → Kết Nối Chia Sẻ**, chọn **Máy chủ riêng**, nhập địa chỉ máy chủ, mã truy cập và **mã nhóm / bản dùng chung**. Mọi người dùng cùng ba thông tin này sẽ làm việc trên cùng một bản. Sau đó vào **⋮ → Cộng Tác Nhóm** và bật cộng tác.
+Mở `http://127.0.0.1:8787`, vào menubar **Công cụ → Kết Nối Chia Sẻ**, chọn **Máy chủ riêng**, nhập địa chỉ máy chủ, mã truy cập và **mã nhóm / bản dùng chung**. Mọi người dùng cùng ba thông tin này sẽ làm việc trên cùng một bản. Sau đó vào menubar **Công cụ → Cộng Tác Nhóm** và bật cộng tác.
 
 - Dữ liệu chính: `DATA_DIR/thi-dua.sqlite`; backup tự động mỗi 24 giờ, giữ 14 bản.
 - Server trả lỗi `507` khi vượt 10GB và có `GET /api/usage` để xem dung lượng.
@@ -153,7 +153,7 @@ create policy "course_sync_all" on public.course_sync
   for all using (true) with check (true);
 ```
 
-3. Vào **⋮ → Kết Nối Chia Sẻ**, chọn **Supabase**, nhập URL project, anon key, tên bảng `course_sync` và mã nhóm đồng bộ.
+3. Vào menubar **Công cụ → Kết Nối Chia Sẻ**, chọn **Supabase**, nhập URL project, anon key, tên bảng `course_sync` và mã nhóm đồng bộ.
 4. Bấm **Kiểm tra kết nối**, sau đó **Đẩy lên** hoặc **Kéo về**.
 
 Lưu ý: anon key dùng trong ứng dụng tĩnh là công khai. Policy mở `using (true)` chỉ phù hợp cho dữ liệu nội bộ hoặc thử nghiệm. Với dữ liệu nhạy cảm, cần backend trung gian hoặc policy giới hạn theo người dùng.
@@ -162,8 +162,8 @@ Lưu ý: anon key dùng trong ứng dụng tĩnh là công khai. Policy mở `us
 
 Có thể cộng tác qua **Supabase** (dùng bảng `course_sync` ở trên) hoặc **máy chủ riêng** (xem [`server/README.md`](server/README.md)). Với máy chủ riêng, mã nhóm cũng là mã bản dùng chung nên mọi người thấy cùng một bản dữ liệu dù mã khóa cục bộ khác nhau.
 
-1. Mỗi người mở **⋮ → Kết Nối Chia Sẻ**, chọn Supabase hoặc Máy chủ riêng, rồi nhập cùng địa chỉ, mã truy cập và **mã nhóm / bản dùng chung**.
-2. Mở **⋮ → Cộng Tác Nhóm**, nhập tên hiển thị và bấm **Bật cộng tác**.
+1. Mỗi người mở menubar **Công cụ → Kết Nối Chia Sẻ**, chọn Supabase hoặc Máy chủ riêng, rồi nhập cùng địa chỉ, mã truy cập và **mã nhóm / bản dùng chung**.
+2. Mở menubar **Công cụ → Cộng Tác Nhóm**, nhập tên hiển thị và bấm **Bật cộng tác**.
 3. Khi một người sửa điểm, quân số, cấu hình hoặc danh sách sinh viên, ứng dụng đẩy bản mới lên Supabase/máy chủ và báo cho các máy khác qua Realtime/WebSocket.
 4. Máy khác nhận thông báo sẽ kéo bản mới về và gộp thay đổi. Nếu realtime bị chặn hoặc mất kết nối, ứng dụng vẫn tự kéo mỗi 15 giây.
 5. Có thể bấm **Kéo mới nhất** hoặc **Đẩy hiện tại** trong hộp thoại cộng tác để đồng bộ ngay.
