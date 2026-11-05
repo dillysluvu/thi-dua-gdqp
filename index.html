@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0b2f2a">
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('THI_DUA_GDQPAN_V3:theme');
+                var dark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (dark) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    var meta = document.querySelector('meta[name="theme-color"]');
+                    if (meta) meta.setAttribute('content', '#07110f');
+                }
+            } catch (error) {}
+        })();
+    </script>
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
     <meta name="description" content="Bảng theo dõi và đánh giá thi đua trung đội GDQP&AN, hỗ trợ nhập Excel và dùng trên điện thoại.">
     <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
@@ -34,6 +47,15 @@
             </div>
 
             <div class="header-actions">
+                <button type="button" class="theme-toggle" id="btnThemeToggle" aria-label="Bật chế độ tối" title="Bật chế độ tối" aria-pressed="false">
+                    <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20.5 14.4A8.5 8.5 0 0 1 9.6 3.5 8.5 8.5 0 1 0 20.5 14.4z"/>
+                    </svg>
+                    <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4"/>
+                        <path d="M12 2v2.2M12 19.8V22M4.93 4.93l1.56 1.56M17.51 17.51l1.56 1.56M2 12h2.2M19.8 12H22M4.93 19.07l1.56-1.56M17.51 6.49l1.56-1.56"/>
+                    </svg>
+                </button>
                 <label class="course-switcher" for="courseSelect">
                     <span class="course-switcher-label">Khóa</span>
                     <select id="courseSelect" class="course-select" aria-label="Chọn khóa học"></select>
@@ -208,7 +230,7 @@
                 </div>
 
                 <div>
-                    Điểm gốc: <strong id="baseScoreLabel" style="color:var(--primary-dark)">50.0đ</strong>
+                    Điểm gốc: <strong id="baseScoreLabel" style="color:var(--accent-text)">50.0đ</strong>
                 </div>
             </div>
 
@@ -279,7 +301,7 @@
     <footer class="app-footer no-print">
         <div class="save-status" id="saveStatus"><span class="dot"></span><span id="saveStatusText">Dữ liệu được lưu tự động trên thiết bị</span><span class="lock-badge" id="lockBadge" hidden>Đã khóa sổ</span><button type="button" class="collab-indicator" id="collabIndicator" hidden><span class="collab-indicator-dot"></span><span id="collabIndicatorText">Cộng tác</span></button></div>
         <div>Mẹo: mở menubar <strong>Công cụ → Xuất File Sao Lưu (.json)</strong> trước khi đổi máy hoặc bắt đầu khóa mới.</div>
-        <div style="margin-top:4px;">Mã nguồn: <a href="https://github.com/dillysluvu/thi-dua-gdqp" target="_blank" rel="noopener" style="color:#0f766e; font-weight:700;">GitHub</a></div>
+        <div style="margin-top:4px;">Mã nguồn: <a href="https://github.com/dillysluvu/thi-dua-gdqp" target="_blank" rel="noopener" style="color:var(--primary-mid); font-weight:700;">GitHub</a></div>
     </footer>
 
     <!-- MOBILE INSPECTION DRAWER / MODAL -->
@@ -953,7 +975,7 @@ create policy "course_sync_all" on public.course_sync
                     <div class="sheet-preview-title" id="sheetPreviewTitle">Xem trước dữ liệu</div>
                     <div class="sheet-preview-scroll">
                         <table class="sheet-preview" id="sheetPreviewTable">
-                            <tbody><tr><td style="padding:14px; color:#94a3b8;">Chưa có dữ liệu. Hãy chọn file hoặc dán dữ liệu.</td></tr></tbody>
+                            <tbody><tr><td style="padding:14px; color:var(--text-faint);">Chưa có dữ liệu. Hãy chọn file hoặc dán dữ liệu.</td></tr></tbody>
                         </table>
                     </div>
                 </div>
@@ -984,6 +1006,7 @@ create policy "course_sync_all" on public.course_sync
             <div class="modal-body">
                 <ol class="help-list">
                     <li><strong>Thanh truy cập nhanh:</strong> dùng các nút ngay dưới header để đến <strong>Tổng quan</strong>, <strong>Danh sách</strong>, <strong>Bảng điểm</strong>, mở <strong>Sinh viên</strong>, <strong>Báo cáo</strong> hoặc <strong>Cài đặt</strong>.</li>
+                    <li><strong>Giao diện sáng/tối:</strong> bấm nút mặt trăng/mặt trời nhỏ ở góc phải header. Lựa chọn được lưu trên thiết bị; lần đầu chưa chọn sẽ theo cài đặt hệ thống.</li>
                     <li><strong>Chấm điểm:</strong> bấm <strong>Chấm Điểm</strong> trên thẻ trung đội, dùng các nút trừ nhanh hoặc nhập số. Nút <strong>Lưu &amp; Sang Phòng Tiếp</strong> giúp chấm liên tục không cần đóng bảng.</li>
                     <li><strong>Tìm nhanh:</strong> gõ số trung đội (vd: <code>15</code>), tên tòa (vd: <code>C7</code>), số phòng hoặc nội dung ghi chú.</li>
                     <li><strong>Dữ liệu tự lưu:</strong> mọi thay đổi được lưu vào trình duyệt trên thiết bị này, theo từng khóa học. Hãy xuất file <strong>.json</strong> định kỳ để sao lưu hoặc chuyển sang máy khác.</li>
@@ -1005,7 +1028,7 @@ create policy "course_sync_all" on public.course_sync
                     </div>
                 </div>
 
-                <div class="settings-tip" style="background:#f8fafc; border-color:#e2e8f0; color:#475569;">
+                <div class="settings-tip" style="background:var(--surface-soft); border-color:var(--line); color:var(--text-body);">
                     <strong>Lưu ý:</strong> xóa dữ liệu trình duyệt / dùng chế độ ẩn danh có thể làm mất dữ liệu đã lưu. File JSON là bản sao an toàn nhất.
                 </div>
             </div>

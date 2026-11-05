@@ -14,6 +14,7 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 
 - Chấm điểm từng trung đội theo học tập, rèn luyện, nội vụ vệ sinh, lễ tiết.
 - Menubar ngay dưới header: **Tổng quan, Danh sách, Bảng điểm, Sinh viên, Công cụ, Báo cáo, Cài đặt**; tự cuộn ngang gọn trên điện thoại.
+- Chế độ sáng/tối: bấm nút mặt trăng/mặt trời nhỏ ở góc phải header. Lựa chọn được lưu trên thiết bị; lần đầu chưa chọn sẽ theo cài đặt hệ thống.
 - Mục **Công cụ** trên menubar gom quản lý khóa học, nhập/xuất dữ liệu, sao lưu, kết nối chia sẻ, cộng tác, nhật ký/khóa sổ và hướng dẫn; bỏ các nút trùng lặp ở header cũ.
 - Trừ điểm nhanh, ghi chú lý do, tự động tính tổng điểm và xếp hạng.
 - Tìm kiếm không dấu theo số trung đội, tòa nhà, phòng hoặc ghi chú.

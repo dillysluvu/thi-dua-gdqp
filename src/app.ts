@@ -153,10 +153,62 @@ const state: any = {
     collabStatus: null as CollabStatus | null
 };
 
+// ============================================================
+// THEME (SÁNG / TỐI)
+// ============================================================
+const THEME_STORAGE_KEY = 'THI_DUA_GDQPAN_V3:theme';
+type ThemeMode = 'light' | 'dark';
+
+function currentTheme(): ThemeMode {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function applyTheme(theme: ThemeMode, persist: boolean): void {
+    document.documentElement.setAttribute('data-theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#07110f' : '#0b2f2a');
+    if (persist) {
+        try {
+            localStorage.setItem(THEME_STORAGE_KEY, theme);
+        } catch {
+            // Trình duyệt có thể chặn localStorage; vẫn đổi giao diện trong phiên hiện tại.
+        }
+    }
+    updateThemeToggle();
+}
+
+function updateThemeToggle(): void {
+    const button = elements.btnThemeToggle;
+    if (!button) return;
+    const dark = currentTheme() === 'dark';
+    button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    button.setAttribute('aria-label', dark ? 'Tắt chế độ tối' : 'Bật chế độ tối');
+    button.setAttribute('title', dark ? 'Chuyển sang chế độ sáng' : 'Bật chế độ tối');
+}
+
+function toggleTheme(): void {
+    applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true);
+}
+
+function setupTheme(): void {
+    updateThemeToggle();
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    media.addEventListener?.('change', event => {
+        let saved: string | null = null;
+        try {
+            saved = localStorage.getItem(THEME_STORAGE_KEY);
+        } catch {
+            // Bỏ qua nếu không đọc được localStorage.
+        }
+        if (!saved) applyTheme(event.matches ? 'dark' : 'light', false);
+    });
+}
+
 // DOM Elements
 const elements: Record<string, any> = {
     appTitle: document.getElementById('appTitle'),
     appSubtitle: document.getElementById('appSubtitle'),
+    btnThemeToggle: document.getElementById('btnThemeToggle'),
     courseSelect: document.getElementById('courseSelect'),
     baseScoreLabel: document.getElementById('baseScoreLabel'),
     inputNgay: document.getElementById('inputNgay'),
@@ -2856,21 +2908,21 @@ function renderCards(items) {
 
 function renderTable(items) {
     if (!items.length) {
-        elements.tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:#64748b;">Không tìm thấy trung đội phù hợp.</td></tr>`;
+        elements.tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">Không tìm thấy trung đội phù hợp.</td></tr>`;
         return;
     }
 
     elements.tableBody.innerHTML = items.map(item => {
         const noteIcon = item.note
-            ? ` <span title="${escapeHtml(item.note)}" style="color:#b45309; cursor:help;">✎</span>`
+            ? ` <span title="${escapeHtml(item.note)}" style="color:var(--tint-warning-text); cursor:help;">✎</span>`
             : '';
 
         return `
             <tr>
                 <td style="text-align:center; font-weight:800;">${item.id}${noteIcon}</td>
                 <td>
-                    <strong style="color:#0f172a;">B${item.id} (${escapeHtml(item.building)})</strong>
-                    <div style="font-size:10px; color:#64748b;">P. ${escapeHtml(item.rooms)}</div>
+                    <strong style="color:var(--text-dark);">B${item.id} (${escapeHtml(item.building)})</strong>
+                    <div style="font-size:10px; color:var(--text-muted);">P. ${escapeHtml(item.rooms)}</div>
                     <button type="button" class="table-student-link" onclick="openStudentsForPlatoon(${item.id})">SV: ${countStudentsForPlatoon(state.students, item)}</button>
                 </td>
                 <td style="text-align:center;">
@@ -3883,7 +3935,7 @@ function resetSheetPreview(message = '') {
     sheetImportState = sheetImportState || { fileName: '', sheets: [], activeSheetIndex: 0, fileRows: [], pasteRows: [], result: null };
     sheetImportState.result = null;
     elements.sheetPreviewTitle.textContent = 'Xem trước dữ liệu';
-    elements.sheetPreviewTable.innerHTML = `<tbody><tr><td style="padding:14px; color:#94a3b8;">${escapeHtml(message || 'Chưa có dữ liệu. Hãy chọn file hoặc dán dữ liệu.')}</td></tr></tbody>`;
+    elements.sheetPreviewTable.innerHTML = `<tbody><tr><td style="padding:14px; color:var(--text-faint);">${escapeHtml(message || 'Chưa có dữ liệu. Hãy chọn file hoặc dán dữ liệu.')}</td></tr></tbody>`;
     elements.sheetSummary.textContent = '';
     elements.btnApplySheet.disabled = true;
 }
@@ -4834,6 +4886,7 @@ function setupEventListeners() {
             setCloudStatus(null);
         });
     }
+    elements.btnThemeToggle?.addEventListener('click', toggleTheme);
     elements.btnOpenCloud.addEventListener('click', openCloudModal);
     elements.btnCloseCloud.addEventListener('click', closeCloudModal);
     elements.btnCloseCloudFooter.addEventListener('click', closeCloudModal);
@@ -5187,6 +5240,7 @@ function initApp() {
     loadSavedData();
     applyMetaToUI();
     setupEventListeners();
+    setupTheme();
     setupConnectivity();
     renderBuildingPills();
     updateCalculations();
