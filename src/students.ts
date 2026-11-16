@@ -1,4 +1,5 @@
 import { normalizeText } from './utils';
+import { effectiveDaiDoi } from './lib/units';
 
 export const STUDENT_POSITIONS = [
   'Học viên',
@@ -23,6 +24,7 @@ export interface Student {
   room: string;
   tieuDoi: string;
   trungDoi: string;
+  daiDoi: string;
   position: StudentPosition;
   phone: string;
   note: string;
@@ -44,11 +46,13 @@ export interface StudentRoomGroup {
   students: Student[];
   trungDois: string[];
   tieuDois: string[];
+  daiDois: string[];
 }
 
 export interface StudentPlatoonGroup {
   key: string;
   trungDoi: string;
+  daiDoi: string;
   students: Student[];
   buildings: string[];
   rooms: string[];
@@ -68,8 +72,9 @@ const STUDENT_ALIASES: Record<string, string[]> = {
   code: ['ma sv', 'mssv', 'ma sinh vien', 'ma so sinh vien', 'msv', 'ma hoc vien'],
   building: ['toa', 'toa nha', 'nha', 'building', 'day nha'],
   room: ['phong', 'phong o', 'so phong', 'room'],
-  tieuDoi: ['tieu doi', 'tieu doi so', 'td nho', 'squad'],
-  trungDoi: ['trung doi', 'trung doi so', 'td', 'platoon'],
+  tieuDoi: ['tieu doi', 'tieu doi so', 'tieu doi a', 'td nho', 'squad'],
+  trungDoi: ['trung doi', 'trung doi so', 'trung doi b', 'td', 'platoon'],
+  daiDoi: ['dai doi', 'dai doi so', 'dai doi c', 'dd', 'company'],
   position: ['chuc vu', 'chuc danh', 'vi tri', 'position', 'vai tro'],
   phone: ['sdt', 'so dien thoai', 'dien thoai', 'phone', 'lien he'],
   note: ['ghi chu', 'note', 'ghi chu khac'],
@@ -81,6 +86,10 @@ const STUDENT_ALIASES: Record<string, string[]> = {
   ethnicity: ['dan toc', 'ethnicity'],
   cccd: ['cccd', 'cmnd', 'can cuoc', 'so cccd', 'cccd/cmnd']
 };
+
+function normalizeHeader(value: unknown): string {
+  return normalizeText(value).replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 const DEFAULT_MAPPING: Record<string, number> = {
   name: 0,
@@ -98,7 +107,8 @@ const DEFAULT_MAPPING: Record<string, number> = {
   hometown: 12,
   gender: 13,
   ethnicity: 14,
-  cccd: 15
+  cccd: 15,
+  daiDoi: 16
 };
 
 function makeStudentId(): string {
@@ -127,6 +137,8 @@ export function normalizeStudent(raw: any): Student | null {
   if (!raw || typeof raw !== 'object') return null;
   const name = String(raw.name !== undefined ? raw.name : '').trim();
   if (!name) return null;
+  const trungDoi = String(raw.trungDoi !== undefined && raw.trungDoi !== null ? raw.trungDoi : '').trim();
+  const daiDoi = String(raw.daiDoi !== undefined && raw.daiDoi !== null ? raw.daiDoi : (raw.dai_doi || '')).trim();
 
   return {
     id: String(raw.id || makeStudentId()),
@@ -135,7 +147,8 @@ export function normalizeStudent(raw: any): Student | null {
     building: String(raw.building !== undefined && raw.building !== null ? raw.building : '').trim(),
     room: String(raw.room !== undefined && raw.room !== null ? raw.room : '').trim(),
     tieuDoi: String(raw.tieuDoi !== undefined && raw.tieuDoi !== null ? raw.tieuDoi : '').trim(),
-    trungDoi: String(raw.trungDoi !== undefined && raw.trungDoi !== null ? raw.trungDoi : '').trim(),
+    trungDoi,
+    daiDoi: effectiveDaiDoi(daiDoi, trungDoi),
     position: normalizePosition(raw.position),
     phone: String(raw.phone !== undefined && raw.phone !== null ? raw.phone : '').trim(),
     note: String(raw.note !== undefined && raw.note !== null ? raw.note : '').trim(),
@@ -184,6 +197,8 @@ function numericText(value: string): number {
 
 export function sortStudents(students: Student[]): Student[] {
   return (students || []).slice().sort((a, b) => {
+    const daiDoiDiff = numericText(effectiveDaiDoi(a.daiDoi, a.trungDoi)) - numericText(effectiveDaiDoi(b.daiDoi, b.trungDoi));
+    if (daiDoiDiff) return daiDoiDiff;
     const trungDoiDiff = numericText(a.trungDoi) - numericText(b.trungDoi);
     if (trungDoiDiff) return trungDoiDiff;
     const tieuDoiDiff = numericText(a.tieuDoi) - numericText(b.tieuDoi);
@@ -220,12 +235,14 @@ export function groupStudentsByRoom(students: Student[]): StudentRoomGroup[] {
     const room = String(student.room || '').trim();
     const key = `${normalizeText(building)}::${normalizeText(room)}`;
     if (!groups.has(key)) {
-      groups.set(key, { key, building, room, students: [], trungDois: [], tieuDois: [] });
+      groups.set(key, { key, building, room, students: [], trungDois: [], tieuDois: [], daiDois: [] });
     }
     const group = groups.get(key)!;
     group.students.push(student);
     if (student.trungDoi && !group.trungDois.includes(student.trungDoi)) group.trungDois.push(student.trungDoi);
     if (student.tieuDoi && !group.tieuDois.includes(student.tieuDoi)) group.tieuDois.push(student.tieuDoi);
+    const daiDoi = effectiveDaiDoi(student.daiDoi, student.trungDoi);
+    if (daiDoi && !group.daiDois.includes(daiDoi)) group.daiDois.push(daiDoi);
   });
 
   return Array.from(groups.values()).sort((a, b) => {
@@ -242,10 +259,11 @@ export function groupStudentsByPlatoon(students: Student[]): StudentPlatoonGroup
     const trungDoi = String(student.trungDoi || '').trim();
     const key = normalizeText(trungDoi) || '__unassigned__';
     if (!groups.has(key)) {
-      groups.set(key, { key, trungDoi, students: [], buildings: [], rooms: [], tieuDois: [] });
+      groups.set(key, { key, trungDoi, daiDoi: '', students: [], buildings: [], rooms: [], tieuDois: [] });
     }
     const group = groups.get(key)!;
     group.students.push(student);
+    if (!group.daiDoi) group.daiDoi = effectiveDaiDoi(student.daiDoi, student.trungDoi);
     if (student.building && !group.buildings.includes(student.building)) group.buildings.push(student.building);
     if (student.room && !group.rooms.includes(student.room)) group.rooms.push(student.room);
     if (student.tieuDoi && !group.tieuDois.includes(student.tieuDoi)) group.tieuDois.push(student.tieuDoi);
@@ -265,11 +283,11 @@ function findHeaderMapping(rows: string[][]): { mapping: Record<string, number>;
     const row = rows[rowIndex] || [];
     const mapping: Record<string, number> = {};
     row.forEach((value, index) => {
-      const normalized = normalizeText(value);
+      const normalized = normalizeHeader(value);
       if (!normalized) return;
       Object.keys(STUDENT_ALIASES).forEach(key => {
         if (mapping[key] !== undefined) return;
-        if (STUDENT_ALIASES[key].includes(normalized)) mapping[key] = index;
+        if (STUDENT_ALIASES[key].some(alias => normalizeHeader(alias) === normalized)) mapping[key] = index;
       });
     });
     if (mapping.name !== undefined && Object.keys(mapping).length >= 2) {
@@ -291,6 +309,7 @@ interface BienCheBlock {
   headerIndex: number;
   headerRow: string[];
   trungDoi: string;
+  daiDoi: string;
   tieuDoiRaw: string;
   order: number;
   rooms: Array<{ room: string; building: string }>;
@@ -304,6 +323,7 @@ interface BienCheRecord {
   blockOrder: number;
   tieuDoiRaw: string;
   trungDoi: string;
+  daiDoi: string;
   platoonLeader: string;
   squadLeader: string;
 }
@@ -365,9 +385,9 @@ function parseRoomList(value: unknown): Array<{ room: string; building: string }
 }
 
 function findStudentColumn(header: string[], aliases: string[]): number {
-  const normalized = (header || []).map(normalizeText);
+  const normalized = (header || []).map(normalizeHeader);
   for (const alias of aliases) {
-    const target = normalizeText(alias);
+    const target = normalizeHeader(alias);
     const index = normalized.findIndex(value => value === target || value.includes(target));
     if (index >= 0) return index;
   }
@@ -418,6 +438,7 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
     if (headerIndex < 0) return;
 
     let trungDoi = '';
+    let daiDoi = '';
     let tieuDoiRaw = '';
     let rooms: Array<{ room: string; building: string }> = [];
     let building = '';
@@ -433,6 +454,10 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
       if (!trungDoi) {
         const info = labelInfo(row, 'trung doi', ['trung doi truong']);
         if (info) trungDoi = info.value;
+      }
+      if (!daiDoi) {
+        const info = labelInfo(row, 'dai doi', ['dai doi truong', 'pho dai doi']);
+        if (info) daiDoi = info.value;
       }
       if (!rooms.length) {
         const info = labelInfo(row, 'phong o');
@@ -456,6 +481,7 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
       headerIndex,
       headerRow: rows[headerIndex] || [],
       trungDoi: trungDoi || '',
+      daiDoi: daiDoi || '',
       tieuDoiRaw: tieuDoiRaw || '',
       order,
       rooms,
@@ -522,7 +548,8 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
       ethnicity: ethnicityIndex,
       cccd: cccdIndex,
       trungDoi: -1,
-      tieuDoi: -1
+      tieuDoi: -1,
+      daiDoi: -1
     });
     if (mapping.room === undefined || mapping.room < 0) mapping.room = roomIndex;
 
@@ -551,6 +578,7 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
         room: roomInfo.room || currentRoom,
         tieuDoi: block.tieuDoiRaw || '',
         trungDoi,
+        daiDoi: block.daiDoi || '',
         position: '',
         phone: cell(row, phoneIndex),
         note: cell(row, noteIndex),
@@ -568,6 +596,7 @@ function parseBienCheRows(rows: string[][], items: any[] = []): StudentImportRes
         blockOrder: block.order,
         tieuDoiRaw: block.tieuDoiRaw,
         trungDoi,
+        daiDoi: block.daiDoi || '',
         platoonLeader: block.platoonLeader,
         squadLeader: block.squadLeader
       });
@@ -646,6 +675,7 @@ export function parseStudentRows(rows: string[][], items: any[] = []): StudentIm
       room: cell(row, mapping.room),
       tieuDoi: cell(row, mapping.tieuDoi),
       trungDoi,
+      daiDoi: cell(row, mapping.daiDoi),
       position: cell(row, mapping.position),
       phone: cell(row, mapping.phone),
       note: cell(row, mapping.note),
@@ -712,7 +742,7 @@ export function mergeStudentLists(current: Student[], incoming: Student[]): Stud
 }
 
 export function studentCSV(students: Student[]): string {
-  const header = ['Họ tên', 'Mã SV', 'Tòa', 'Phòng', 'Tiểu đội', 'Trung đội', 'Chức vụ', 'SĐT', 'Ghi chú', 'Lớp', 'Trường', 'Ngày sinh', 'Nơi sinh', 'Giới tính', 'Dân tộc', 'CCCD'];
+  const header = ['Họ tên', 'Mã SV', 'Tòa', 'Phòng', 'Tiểu đội (a)', 'Trung đội (b)', 'Đại đội (c)', 'Chức vụ', 'SĐT', 'Ghi chú', 'Lớp', 'Trường', 'Ngày sinh', 'Nơi sinh', 'Giới tính', 'Dân tộc', 'CCCD'];
   const rows = sortStudents(students).map(student => [
     student.name,
     student.code,
@@ -720,6 +750,7 @@ export function studentCSV(students: Student[]): string {
     student.room,
     student.tieuDoi,
     student.trungDoi,
+    effectiveDaiDoi(student.daiDoi, student.trungDoi),
     student.position,
     student.phone,
     student.note,

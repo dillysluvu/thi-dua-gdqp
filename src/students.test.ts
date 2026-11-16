@@ -148,6 +148,30 @@ describe('students', () => {
   });
 
 
+  it('đọc và giữ đại đội (c) từ bảng sinh viên', () => {
+    const result = parseStudentRows([
+      ['Họ tên', 'Tiểu đội (a)', 'Trung đội (b)', 'Đại đội (c)', 'Phòng'],
+      ['Nguyễn Văn A', '45', '12', '3', '503']
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.students[0]).toMatchObject({
+      name: 'Nguyễn Văn A',
+      tieuDoi: '45',
+      trungDoi: '12',
+      daiDoi: '3'
+    });
+  });
+
+  it('tự suy ra đại đội khi bảng chỉ có trung đội', () => {
+    const result = parseStudentRows([
+      ['Họ tên', 'Trung đội', 'Tiểu đội'],
+      ['Nguyễn Văn A', '5', '17'],
+      ['Trần Thị B', '8', '30']
+    ]);
+    expect(result.errors).toEqual([]);
+    expect(result.students.map(student => student.daiDoi)).toEqual(['2', '2']);
+  });
+
   it('xuất CSV và nhập lại giữ thông tin bổ sung', () => {
     const students = normalizeStudents([{
       id: '1',
@@ -157,6 +181,7 @@ describe('students', () => {
       room: '503',
       tieuDoi: '1',
       trungDoi: '1',
+      daiDoi: '3',
       position: 'Tiểu đội trưởng',
       className: 'AT23A',
       school: 'HVMM',
@@ -172,6 +197,7 @@ describe('students', () => {
     expect(result.students[0]).toMatchObject({
       name: 'Nguyễn Văn A',
       code: 'SV01',
+      daiDoi: '3',
       className: 'AT23A',
       school: 'HVMM',
       birthDate: '01/01/2008',

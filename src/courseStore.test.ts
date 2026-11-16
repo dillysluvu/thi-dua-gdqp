@@ -12,6 +12,8 @@ describe('courseStore', () => {
     const record = makeDefaultRecord('K338');
     expect(record.meta.courseName).toBe('K338');
     expect(record.items).toHaveLength(56);
+    expect(record.items[0].daiDoi).toBe('1');
+    expect(record.items[4].daiDoi).toBe('2');
     expect(record.items[0].totalScore).toBe(50);
     expect(record.items[0].rank).toBe(1);
     expect(record.audit).toEqual([]);

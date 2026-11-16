@@ -1,6 +1,15 @@
-# Bảng Thi Đua GDQP&AN
+# Bảng Thi Đua GDQP&AN · v4.0.0
 
 Công cụ chấm điểm và theo dõi thi đua trung đội GDQP&AN, chạy trên trình duyệt. Dữ liệu được lưu tự động trên thiết bị, có thể dùng nhiều khóa học, quản lý danh sách sinh viên/ban cán sự, sao lưu/khôi phục, khóa sổ, đồng bộ đám mây và cộng tác nhóm tùy chọn. Có thể dùng Supabase hoặc dựng **máy chủ riêng Node + SQLite** để nhiều người cùng làm việc trên một bản dữ liệu, với dung lượng dữ liệu/backup giới hạn 10GB.
+
+Bản 4.0 dựng lại giao diện mobile-first bằng **React 19 + TypeScript + Vite 6 + Zustand 5 + lucide-react**, giữ nguyên dữ liệu V2/V3, API, backend Node/SQLite/WebSocket và GitHub Pages.
+
+## Quy ước đơn vị
+
+- **a** = tiểu đội, **b** = trung đội, **c** = đại đội.
+- **Mỗi đại đội gồm 4 trung đội:** `b1–b4 = c1`, `b5–b8 = c2`, `b9–b12 = c3`, … Khi nhập trung đội, đại đội được tự động điền theo quy tắc này; vẫn có thể chỉnh tay nếu dữ liệu thực tế khác.
+- Trong giao diện, đơn vị được viết gọn kèm số: `a45` (tiểu đội 45), `b12` (trung đội 12), `c3` (đại đội 3). Rê chuột hoặc chạm giữ để xem tên đầy đủ.
+- Dữ liệu cũ không có trường đại đội vẫn dùng bình thường; đại đội sẽ được suy ra từ trung đội khi tải dữ liệu.
 
 ## Dùng online
 
@@ -13,7 +22,7 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 ### Chấm điểm và quản lý khóa
 
 - Chấm điểm từng trung đội theo học tập, rèn luyện, nội vụ vệ sinh, lễ tiết.
-- Menubar ngay dưới header: **Tổng quan, Danh sách, Bảng điểm, Sinh viên, Công cụ, Báo cáo, Cài đặt**; tự cuộn ngang gọn trên điện thoại.
+- Menubar ngay dưới header: **Tổng quan, Danh sách, Bảng điểm, Sinh viên, Công cụ, Báo cáo, Cài đặt**; tự xuống hai hàng gọn trên điện thoại.
 - Chế độ sáng/tối: bấm nút mặt trăng/mặt trời nhỏ ở góc phải header. Lựa chọn được lưu trên thiết bị; lần đầu chưa chọn sẽ theo cài đặt hệ thống.
 - Mục **Công cụ** trên menubar gom quản lý khóa học, nhập/xuất dữ liệu, sao lưu, kết nối chia sẻ, cộng tác, nhật ký/khóa sổ và hướng dẫn; bỏ các nút trùng lặp ở header cũ.
 - Trừ điểm nhanh, ghi chú lý do, tự động tính tổng điểm và xếp hạng.
@@ -26,11 +35,11 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 ### Danh sách sinh viên và ban cán sự
 
 - Mở menubar **Sinh viên**.
-- Nhập danh sách từ Excel/CSV với các cột họ tên, mã SV, tòa, phòng, tiểu đội, trung đội, chức vụ, số điện thoại, ghi chú; giữ thêm lớp, trường, ngày sinh, nơi sinh, giới tính, dân tộc, CCCD nếu có.
+- Nhập danh sách từ Excel/CSV với các cột họ tên, mã SV, tòa, phòng, tiểu đội (a), trung đội (b), đại đội (c), chức vụ, số điện thoại, ghi chú; giữ thêm lớp, trường, ngày sinh, nơi sinh, giới tính, dân tộc, CCCD nếu có.
 - Hỗ trợ mẫu **biên chế nhiều tiểu đội** của nhà trường: tự đọc từng khối “Danh sách biên chế tiểu đội”, ghép họ tên từ hai cột, nhận trung đội/tiểu đội/phòng/tòa và **giữ nguyên số tiểu đội gốc** liên tục (1, 2, 3, ... 168), không reset về 1–3 trong từng trung đội.
 - Có thể chọn **nhiều file .xls/.xlsx cùng lúc** để nhập gộp (ví dụ file ĐHKT và file HVMM).
 - Nếu đã nhập danh sách bằng bản 3.2 trở về trước, hãy nhập lại file biên chế ở chế độ **Cập nhật** một lần để thay số tiểu đội cũ (1–3 trong từng trung đội) bằng số tiểu đội gốc.
-- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, trung đội, tiểu đội và tìm kiếm không dấu.
+- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, đại đội (c), trung đội (b), tiểu đội (a) và tìm kiếm không dấu.
 - Thêm, sửa, xóa sinh viên trực tiếp trên giao diện; kiểm tra trùng mã SV; **Lưu & Thêm tiếp** để nhập nhanh nhiều sinh viên; xóa có xác nhận và **Hoàn tác**.
 - Chọn nhiều sinh viên bằng checkbox để **xóa hàng loạt** hoặc **gán chức vụ hàng loạt**; mở rộng phần thông tin bổ sung để sửa lớp, ngày sinh, CCCD...
 - Gán chức vụ **Tiểu đội trưởng**, **Trung đội trưởng**, **Phó đại đội trưởng**; tab **Ban cán sự** có nút **Gán cán sự** để tìm sinh viên theo tên/mã và gán chức vụ, tránh tạo trùng sinh viên.
@@ -82,7 +91,7 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 Vào menubar **Công cụ → Nhập Excel / Google Sheets**.
 
 - File Excel nhiều sheet: chọn **Trang tính** cần nhập.
-- Bảng điểm nên có dòng tiêu đề với các cột: `TĐ`, `Tòa`, `Phòng`, `Quân số`, `Học tập`, `Rèn luyện`, `NVVS`, `Lễ tiết`, `Ghi chú`.
+- Bảng điểm nên có dòng tiêu đề với các cột: `b`, `c` (tùy chọn), `Tòa`, `Phòng`, `Quân số`, `Học tập`, `Rèn luyện`, `NVVS`, `Lễ tiết`, `Ghi chú`.
 - Bảng nhà ở/biên chế có các cột `TT`, `trung đội`, `quân số`, `phòng ở`, `Nhà` sẽ được tự động gộp theo trung đội.
 - Có thể chọn **Cập nhật** (giữ danh sách hiện tại, chỉ sửa các trung đội có trong file) hoặc **Thay thế toàn bộ**.
 - Nếu file không nhận diện đúng, mở **Ghép cột thủ công & mẫu mapping**, chọn đúng cột cho từng trường rồi bấm **Lưu mẫu** để dùng lại.
@@ -93,7 +102,7 @@ Vào menubar **Công cụ → Nhập Excel / Google Sheets**.
 Vào menubar **Sinh viên → Nhập Excel/CSV**.
 
 - Cột bắt buộc: **Họ tên**. Các cột còn lại là tùy chọn.
-- Tên cột được nhận diện tự động: `Họ tên`, `Mã SV`, `Tòa`, `Phòng`, `Tiểu đội`, `Trung đội`, `Chức vụ`, `SĐT`, `Ghi chú`, `Lớp`, `Trường`, `Ngày sinh`, `Nơi sinh`, `Giới tính`, `Dân tộc`, `CCCD`.
+- Tên cột được nhận diện tự động: `Họ tên`, `Mã SV`, `Tòa`, `Phòng`, `Tiểu đội (a)`, `Trung đội (b)`, `Đại đội (c)`, `Chức vụ`, `SĐT`, `Ghi chú`, `Lớp`, `Trường`, `Ngày sinh`, `Nơi sinh`, `Giới tính`, `Dân tộc`, `CCCD`.
 - Nếu file không có dòng tiêu đề, ứng dụng đọc theo thứ tự cột mặc định ở trên.
 - Chế độ **Cập nhật** giữ sinh viên hiện có và cập nhật theo mã SV; sinh viên chưa có mã mới đối chiếu theo họ tên + phòng. Chế độ **Thay thế** xóa danh sách cũ rồi nhập mới. Khi cập nhật, chức vụ cán sự, SĐT và ghi chú đã nhập tay được giữ lại nếu file mới để trống.
 - Có thể chọn nhiều file cùng lúc. Với file có cả sheet `Bienche` và `Nha o`, nên nhập sheet `Bienche` ở mục **Nhập danh sách sinh viên** và nhập sheet `Nha o` ở mục **Nhập Excel / Google Sheets** để cập nhật danh sách trung đội.
@@ -181,27 +190,37 @@ Cách gộp dữ liệu:
 
 ## Phát triển
 
-Dự án dùng **Vite + TypeScript**, mã nguồn tách thành các module trong `src/`:
+Giao diện dùng **React 19 + TypeScript + Vite 6 + Zustand 5 + lucide-react**. Mã nguồn tách theo tính năng trong `src/`:
 
 ```text
-index.html                 # Khung giao diện
-src/main.ts                # Điểm vào, đăng ký service worker
-src/app.ts                 # Trạng thái, render, sự kiện, nhập/xuất
-src/parsers.ts             # Đọc .xls, .xlsx, .csv, .tsv, HTML/XML
-src/constants.ts           # Dữ liệu mẫu, preset 56 trung đội, alias cột
-src/utils.ts               # Hàm tiện ích dùng chung
-src/scoring.ts             # Tính điểm, xếp hạng, thống kê
-src/courseStore.ts         # Lưu trữ nhiều khóa V3 và migrate V2
-src/backup.ts              # Sao lưu tự động và danh sách bản lưu
-src/audit.ts               # Nhật ký thay đổi
-src/students.ts            # Danh sách sinh viên, ban cán sự, nhập/xuất CSV
-src/merge.ts               # Gộp dữ liệu nhiều người theo thời điểm sửa
-src/cloudSync.ts           # Kết nối Supabase hoặc máy chủ riêng
-src/collab.ts              # Cộng tác Supabase Realtime / WebSocket, presence, polling
-server/index.mjs           # HTTP API, WebSocket, phục vụ dist/
-server/store.mjs           # SQLite, quota 10GB, backup
-server/store.test.mjs      # Test Node cho server
-src/styles.css             # Toàn bộ giao diện
+index.html                     # Khung HTML, theme script, entry React
+src/main.tsx                   # Điểm vào React 19, đăng ký service worker
+src/App.tsx                    # Hash routing, layout, mount trang và modal
+src/store/useAppStore.ts       # Zustand store, persistence, backup, cloud/collab
+src/components/layout/         # Header, menubar, panel Công cụ
+src/components/pages/          # Tổng quan, Danh sách, Bảng điểm, Sinh viên, Báo cáo, Cài đặt
+src/components/grading/        # Phiếu chấm điểm dạng drawer
+src/components/students/       # Trình sửa hồ sơ sinh viên
+src/components/modals/         # Khóa học, nhập Excel, sao lưu, cloud, cộng tác, nhật ký, trợ giúp
+src/components/ui/             # Modal, Field, Toast, Confirm, StatCard, ScoreRing...
+src/lib/record.ts              # Chuẩn hóa bản ghi, migrate V2/V3
+src/lib/sheetImport.ts         # Ghép cột, xem trước và preset nhập Excel
+src/lib/export.ts              # Xuất CSV/JSON
+src/styles/                    # Design tokens, layout, component, responsive, print
+src/parsers.ts                 # Đọc .xls, .xlsx, .csv, .tsv, HTML/XML
+src/constants.ts               # Dữ liệu mẫu, preset 56 trung đội, alias cột
+src/utils.ts                   # Hàm tiện ích dùng chung
+src/scoring.ts                 # Tính điểm, xếp hạng, thống kê
+src/courseStore.ts             # Lưu trữ nhiều khóa V3 và migrate V2
+src/backup.ts                  # Sao lưu tự động và danh sách bản lưu
+src/audit.ts                   # Nhật ký thay đổi
+src/students.ts                # Danh sách sinh viên, ban cán sự, nhập/xuất CSV
+src/merge.ts                   # Gộp dữ liệu nhiều người theo thời điểm sửa
+src/cloudSync.ts               # Kết nối Supabase hoặc máy chủ riêng
+src/collab.ts                  # Cộng tác Supabase Realtime / WebSocket, presence, polling
+server/index.mjs               # HTTP API, WebSocket, phục vụ dist/
+server/store.mjs               # SQLite, quota 10GB, backup
+server/store.test.mjs          # Test Node cho server
 ```
 
 Cài đặt và chạy thử:
@@ -210,7 +229,7 @@ Cài đặt và chạy thử:
 npm install
 npm run dev        # chạy dev server
 npm run typecheck  # kiểm tra TypeScript
-npm test           # Vitest (57 test) + test server SQLite (4 test)
+npm test           # Vitest (67 test) + test server SQLite (4 test)
 npm run test:server # chỉ chạy test server
 npm run build      # build ra thư mục dist/
 npm run preview    # xem thử bản build

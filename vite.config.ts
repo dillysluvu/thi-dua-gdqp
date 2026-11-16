@@ -1,13 +1,25 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    target: 'es2020',
+    cssCodeSplit: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          vendor: ['zustand', 'lucide-react']
+        }
+      }
+    }
   },
   plugins: [
+    react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
@@ -24,12 +36,13 @@ export default defineConfig({
         lang: 'vi',
         dir: 'ltr',
         theme_color: '#0b2f2a',
-        background_color: '#f3f6f2',
+        background_color: '#f5f6f1',
         display: 'standalone',
         display_override: ['standalone', 'minimal-ui'],
         orientation: 'portrait-primary',
         start_url: './',
         scope: './',
+        categories: ['education', 'productivity'],
         icons: [
           {
             src: 'icons/icon-192.png',

@@ -1,0 +1,210 @@
+/* ============================================================
+   Print: A4 report
+   ============================================================ */
+
+@page {
+  size: A4 portrait;
+  margin: 11mm 10mm;
+}
+
+@media print {
+  :root,
+  [data-theme="dark"] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-elevated: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f2f2f2;
+    --surface-3: #e7e7e7;
+    --text: #111111;
+    --text-soft: #222222;
+    --muted: #555555;
+    --line: #bbbbbb;
+    --line-strong: #999999;
+    --primary: #0b4a3d;
+    --primary-strong: #073f34;
+    --primary-contrast: #ffffff;
+    --primary-soft: #eef5f2;
+    --accent: #9d6f18;
+    --accent-soft: #fbf3df;
+    --danger: #9b2c25;
+    --danger-soft: #fbeceb;
+    --success: #0f6246;
+    --success-soft: #eaf5f0;
+    --info: #244f91;
+    --info-soft: #edf2fa;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+
+  body {
+    font-size: 10pt;
+    background-image: none !important;
+  }
+
+  .app-header,
+  .app-footer,
+  .no-print,
+  .toast,
+  .bulk-bar,
+  .tools-sheet,
+  .tools-backdrop,
+  .drawer-backdrop,
+  .modal-backdrop,
+  .skip-link {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-main,
+  .page-enter,
+  .page-stack {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .report-page {
+    gap: 0;
+  }
+
+  .report-sheet {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+
+  .report-head {
+    border-bottom: 2px solid #0b4a3d !important;
+    break-inside: avoid;
+  }
+
+  .report-emblem {
+    background: #0b4a3d !important;
+    color: #f3c96b !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .report-heading h2 {
+    font-size: 16pt;
+  }
+
+  .report-heading > span,
+  .report-heading p,
+  .report-date {
+    color: #444 !important;
+  }
+
+  .report-meta-grid {
+    border-color: #999 !important;
+    background: #999 !important;
+  }
+
+  .report-meta-grid > div {
+    background: #fff !important;
+  }
+
+  .report-meta-grid span,
+  .report-summary-item span,
+  .report-footer span,
+  .report-footnote {
+    color: #555 !important;
+  }
+
+  .report-meta-grid strong,
+  .report-summary-item strong,
+  .report-footer strong {
+    color: #111 !important;
+  }
+
+  .report-summary-item {
+    background: #f4f4f4 !important;
+  }
+
+  .report-summary-item > svg {
+    color: #0b4a3d !important;
+  }
+
+  .report-table-wrap {
+    overflow: visible !important;
+  }
+
+  .report-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 8pt;
+    border-collapse: collapse;
+  }
+
+  .report-table thead {
+    display: table-header-group;
+  }
+
+  .report-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-table th {
+    padding: 3px 4px !important;
+    border: 1px solid #777 !important;
+    background: #eeeeee !important;
+    color: #111 !important;
+    font-size: 7pt;
+  }
+
+  .report-table td {
+    padding: 2.5px 4px !important;
+    border: 1px solid #999 !important;
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  .report-table tbody tr:nth-child(even) td,
+  .report-table .report-top-1 td,
+  .report-table .report-top-2 td,
+  .report-table .report-top-3 td {
+    background: #fff !important;
+  }
+
+  .report-note {
+    max-width: none;
+    white-space: normal;
+  }
+
+  .report-footer {
+    margin-top: 18pt;
+    break-inside: avoid;
+  }
+
+  .report-footnote {
+    margin-top: 10pt;
+    font-size: 7pt;
+  }
+
+  .text-danger {
+    color: #9b2c25 !important;
+  }
+
+  .text-success {
+    color: #0f6246 !important;
+  }
+
+  .text-muted {
+    color: #555 !important;
+  }
+}

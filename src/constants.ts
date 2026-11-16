@@ -134,7 +134,8 @@ export const DEFAULT_META = {
 };
 
 export const SHEET_ALIASES: Record<string, string[]> = {
-    id: ['td', 'stt', 'so td', 'trung doi', 'id', 'tt', 'so thu tu'],
+    id: ['td', 'stt', 'so td', 'so b', 'b', 'trung doi', 'id', 'tt', 'so thu tu'],
+    daiDoi: ['dai doi', 'dai doi so', 'so c', 'c', 'dd', 'company'],
     building: ['toa', 'toa nha', 'nha', 'building', 'day nha'],
     rooms: ['phong', 'phong o', 'room', 'so phong'],
     quanSo: ['quan so', 'qs', 'quan so ngay', 'quan so hang ngay'],
@@ -146,7 +147,8 @@ export const SHEET_ALIASES: Record<string, string[]> = {
 };
 
 export const SHEET_PREVIEW_COLUMNS: Array<[string, string]> = [
-    ['id', 'TĐ'],
+    ['id', 'b'],
+    ['daiDoi', 'c'],
     ['building', 'Tòa'],
     ['rooms', 'Phòng'],
     ['quanSo', 'Quân số'],

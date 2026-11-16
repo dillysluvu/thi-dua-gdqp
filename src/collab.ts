@@ -1,4 +1,4 @@
-import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { cloudProviderOf, pullCourse, pushCourse, type CloudConfig, type CloudStatus } from './cloudSync';
 import { readJson, writeJson, type CourseRecord } from './courseStore';
 
@@ -182,6 +182,8 @@ export class CollabSession {
 
     try {
       const url = String(this.options.config.url || '').replace(/\/+$/, '');
+      // Chỉ tải SDK Supabase khi người dùng thật sự bật cộng tác Supabase.
+      const { createClient } = await import('@supabase/supabase-js');
       this.client = createClient(url, this.options.config.anonKey, {
         auth: {
           persistSession: false,

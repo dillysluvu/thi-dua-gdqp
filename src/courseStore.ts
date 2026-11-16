@@ -1,4 +1,5 @@
 import { DEFAULT_META, PLATOONS_PRESET } from './constants';
+import { daiDoiFromTrungDoi } from './lib/units';
 import { normalizeStudents, type Student } from './students';
 
 export interface CourseMeta {
@@ -179,6 +180,7 @@ export function makeDefaultRecord(courseName = DEFAULT_META.courseName): CourseR
       id: preset.id,
       building: preset.building,
       rooms: preset.rooms,
+      daiDoi: daiDoiFromTrungDoi(preset.id),
       quanSo: preset.defaultQuanSo,
       hocTap: 0,
       renLuyen: 0,
