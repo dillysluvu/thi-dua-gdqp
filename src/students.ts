@@ -16,6 +16,21 @@ export const LEADER_POSITIONS = [
 
 export type StudentPosition = string;
 
+export const STUDENT_INFO_FIELDS = [
+  { key: 'code', label: 'Mã SV' },
+  { key: 'className', label: 'Lớp' },
+  { key: 'school', label: 'Trường' },
+  { key: 'birthDate', label: 'Ngày sinh' },
+  { key: 'hometown', label: 'Quê quán' },
+  { key: 'gender', label: 'Giới tính' },
+  { key: 'ethnicity', label: 'Dân tộc' },
+  { key: 'cccd', label: 'CCCD' },
+  { key: 'phone', label: 'Số điện thoại' }
+] as const;
+
+export type StudentInfoKey = typeof STUDENT_INFO_FIELDS[number]['key'];
+export type StudentMissingFilter = 'ALL' | StudentInfoKey;
+
 export interface Student {
   id: string;
   name: string;

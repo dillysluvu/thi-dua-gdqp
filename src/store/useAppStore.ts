@@ -58,7 +58,8 @@ import {
   normalizeStudents,
   parseStudentRows,
   sortStudents,
-  type Student
+  type Student,
+  type StudentMissingFilter
 } from '../students';
 import { clampInt, formatNum, normalizeQuanSo, normalizeText, readFileAsText, round1 } from '../utils';
 import {
@@ -162,6 +163,7 @@ interface AppState {
   studentPlatoon: string;
   studentTieuDoi: string;
   studentDaiDoi: string;
+  studentMissing: StudentMissingFilter;
   studentGroupMode: 'room' | 'platoon';
   studentTab: 'students' | 'leaders';
   studentSelectedIds: string[];
@@ -224,6 +226,7 @@ interface AppState {
   setStudentPlatoon: (value: string) => void;
   setStudentTieuDoi: (value: string) => void;
   setStudentDaiDoi: (value: string) => void;
+  setStudentMissing: (value: StudentMissingFilter) => void;
   setStudentGroupMode: (value: 'room' | 'platoon') => void;
   setStudentTab: (value: 'students' | 'leaders') => void;
   toggleStudentSelected: (id: string) => void;
@@ -431,6 +434,7 @@ function resetFiltersState(): Partial<AppState> {
     studentPlatoon: 'ALL',
     studentTieuDoi: 'ALL',
     studentDaiDoi: 'ALL',
+    studentMissing: 'ALL',
     studentSelectedIds: [],
     studentTab: 'students',
     toolsOpen: false
@@ -493,6 +497,7 @@ export const useAppStore = create<AppState>((set, get) => {
     studentPlatoon: 'ALL',
     studentTieuDoi: 'ALL',
     studentDaiDoi: 'ALL',
+    studentMissing: 'ALL',
     studentGroupMode: 'room',
     studentTab: 'students',
     studentSelectedIds: [],
@@ -1311,6 +1316,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setStudentPlatoon: (value) => set({ studentPlatoon: value || 'ALL' }),
     setStudentTieuDoi: (value) => set({ studentTieuDoi: value || 'ALL' }),
     setStudentDaiDoi: (value) => set({ studentDaiDoi: value || 'ALL' }),
+    setStudentMissing: (value) => set({ studentMissing: value || 'ALL' }),
     setStudentGroupMode: (value) => set({ studentGroupMode: value }),
     setStudentTab: (value) => set({ studentTab: value, studentSelectedIds: [] }),
     toggleStudentSelected: (id) => {
@@ -1326,6 +1332,7 @@ export const useAppStore = create<AppState>((set, get) => {
       studentPlatoon: 'ALL',
       studentTieuDoi: 'ALL',
       studentDaiDoi: 'ALL',
+      studentMissing: 'ALL',
       studentSelectedIds: []
     }),
 
@@ -1628,11 +1635,12 @@ export function selectSelectedItem(state: Pick<AppState, 'record' | 'selectedIte
 }
 
 export function selectFilteredStudents(state: Pick<AppState,
-  'record' | 'studentSearch' | 'studentBuilding' | 'studentRoom' | 'studentPlatoon' | 'studentTieuDoi' | 'studentDaiDoi'
+  'record' | 'studentSearch' | 'studentBuilding' | 'studentRoom' | 'studentPlatoon' | 'studentTieuDoi' | 'studentDaiDoi' | 'studentMissing'
 >): Student[] {
   const query = normalizeText(state.studentSearch);
   return sortStudents(state.record.students.filter(student => {
     if (state.studentBuilding !== 'ALL' && student.building !== state.studentBuilding) return false;
+    if (state.studentMissing !== 'ALL' && String(student[state.studentMissing] || '').trim()) return false;
     if (state.studentRoom === '__none__') {
       if (student.room) return false;
     } else if (state.studentRoom !== 'ALL' && student.room !== state.studentRoom) return false;
@@ -1646,7 +1654,28 @@ export function selectFilteredStudents(state: Pick<AppState,
       if (student.tieuDoi) return false;
     } else if (state.studentTieuDoi !== 'ALL' && student.tieuDoi !== state.studentTieuDoi) return false;
     if (!query) return true;
-    return normalizeText(`${student.name} ${student.code} ${student.room} ${student.building} ${unitCode('daiDoi', student.daiDoi)} ${unitCode('trungDoi', student.trungDoi)} ${unitCode('tieuDoi', student.tieuDoi)} ${student.daiDoi} ${student.trungDoi} ${student.tieuDoi} ${student.position} ${student.phone} ${student.className} ${student.school}`).includes(query);
+    return normalizeText([
+      student.name,
+      student.code,
+      student.room,
+      student.building,
+      unitCode('daiDoi', student.daiDoi),
+      unitCode('trungDoi', student.trungDoi),
+      unitCode('tieuDoi', student.tieuDoi),
+      student.daiDoi,
+      student.trungDoi,
+      student.tieuDoi,
+      student.position,
+      student.phone,
+      student.className,
+      student.school,
+      student.birthDate,
+      student.hometown,
+      student.gender,
+      student.ethnicity,
+      student.cccd,
+      student.note
+    ].join(' ')).includes(query);
   }));
 }
 
@@ -1667,7 +1696,9 @@ export function selectStudentStats(record: CourseRecord) {
     leaders: students.filter(student => isLeaderPosition(student.position)).length,
     noRoom: students.filter(student => !student.room).length,
     noPlatoon: students.filter(student => !student.trungDoi).length,
-    noDaiDoi: students.filter(student => !student.daiDoi).length
+    noDaiDoi: students.filter(student => !student.daiDoi).length,
+    missingCccd: students.filter(student => !String(student.cccd || '').trim()).length,
+    missingHometown: students.filter(student => !String(student.hometown || '').trim()).length
   };
 }
 

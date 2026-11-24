@@ -44,7 +44,8 @@ export function GradingDrawer() {
     studentRoom: 'ALL',
     studentPlatoon: selectedItemId ? String(selectedItemId) : 'ALL',
     studentTieuDoi: 'ALL',
-    studentDaiDoi: 'ALL'
+    studentDaiDoi: 'ALL',
+    studentMissing: 'ALL'
   }), [record, selectedItemId]);
 
   const [draft, setDraft] = useState<GradingDraft>({

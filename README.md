@@ -39,8 +39,9 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 - Hỗ trợ mẫu **biên chế nhiều tiểu đội** của nhà trường: tự đọc từng khối “Danh sách biên chế tiểu đội”, ghép họ tên từ hai cột, nhận trung đội/tiểu đội/phòng/tòa và **giữ nguyên số tiểu đội gốc** liên tục (1, 2, 3, ... 168), không reset về 1–3 trong từng trung đội.
 - Có thể chọn **nhiều file .xls/.xlsx cùng lúc** để nhập gộp (ví dụ file ĐHKT và file HVMM).
 - Nếu đã nhập danh sách bằng bản 3.2 trở về trước, hãy nhập lại file biên chế ở chế độ **Cập nhật** một lần để thay số tiểu đội cũ (1–3 trong từng trung đội) bằng số tiểu đội gốc.
-- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, đại đội (c), trung đội (b), tiểu đội (a) và tìm kiếm không dấu.
+- Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, đại đội (c), trung đội (b), tiểu đội (a) và tìm kiếm không dấu trên mọi thông tin (họ tên, mã SV, CCCD, quê quán, lớp, trường, dân tộc, ghi chú...).
 - Thẻ sinh viên hiển thị đầy đủ thông tin đã nhập từ file: lớp, trường, ngày sinh, quê quán/nơi sinh, giới tính, dân tộc, CCCD, số điện thoại và ghi chú.
+- Nút **Xem thông tin** mở hồ sơ đầy đủ của sinh viên; thẻ thống kê **Thiếu CCCD**, **Thiếu quê quán** và bộ lọc **Thiếu thông tin** giúp rà soát nhanh dữ liệu còn thiếu.
 - Thêm, sửa, xóa sinh viên trực tiếp trên giao diện; kiểm tra trùng mã SV; **Lưu & Thêm tiếp** để nhập nhanh nhiều sinh viên; xóa có xác nhận và **Hoàn tác**.
 - Chọn nhiều sinh viên bằng checkbox để **xóa hàng loạt** hoặc **gán chức vụ hàng loạt**; mở rộng phần thông tin bổ sung để sửa lớp, ngày sinh, CCCD...
 - Gán chức vụ **Tiểu đội trưởng**, **Trung đội trưởng**, **Phó đại đội trưởng**; tab **Ban cán sự** có nút **Gán cán sự** để tìm sinh viên theo tên/mã và gán chức vụ, tránh tạo trùng sinh viên.

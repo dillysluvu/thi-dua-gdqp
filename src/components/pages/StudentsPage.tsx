@@ -5,8 +5,11 @@ import {
   ChevronDown,
   DoorOpen,
   Download,
+  Eye,
   Filter,
   GraduationCap,
+  IdCard,
+  MapPin,
   Pencil,
   Phone,
   Plus,
@@ -24,7 +27,9 @@ import {
   groupStudentsByRoom,
   LEADER_POSITIONS,
   isLeaderPosition,
+  STUDENT_INFO_FIELDS,
   type Student,
+  type StudentMissingFilter,
   type StudentPlatoonGroup,
   type StudentRoomGroup
 } from '../../students';
@@ -38,6 +43,7 @@ import { exportStudentsCSV } from '../../lib/export';
 import { UNIT_LEGEND, UNIT_RULE, unitCode, unitFull, unitLabel } from '../../lib/units';
 import { Segmented } from '../ui/Segmented';
 import { EmptyState } from '../ui/EmptyState';
+import { StudentDetail } from '../students/StudentDetail';
 
 function initials(name: string): string {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -56,6 +62,7 @@ function StudentCard({
   student,
   selected,
   onToggle,
+  onView,
   onEdit,
   onDelete,
   onClearPosition
@@ -63,6 +70,7 @@ function StudentCard({
   student: Student;
   selected: boolean;
   onToggle: () => void;
+  onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onClearPosition?: () => void;
@@ -116,6 +124,9 @@ function StudentCard({
             <X size={15} />
           </button>
         ) : null}
+        <button type="button" className="icon-button" onClick={onView} title="Xem thông tin" aria-label={`Xem thông tin ${student.name}`}>
+          <Eye size={15} />
+        </button>
         <button type="button" className="icon-button" onClick={onEdit} title="Sửa sinh viên" aria-label={`Sửa ${student.name}`}>
           <Pencil size={15} />
         </button>
@@ -135,6 +146,7 @@ export function StudentsPage() {
   const studentPlatoon = useAppStore(state => state.studentPlatoon);
   const studentTieuDoi = useAppStore(state => state.studentTieuDoi);
   const studentDaiDoi = useAppStore(state => state.studentDaiDoi);
+  const studentMissing = useAppStore(state => state.studentMissing);
   const groupMode = useAppStore(state => state.studentGroupMode);
   const tab = useAppStore(state => state.studentTab);
   const selectedIds = useAppStore(state => state.studentSelectedIds);
@@ -145,6 +157,7 @@ export function StudentsPage() {
   const setStudentPlatoon = useAppStore(state => state.setStudentPlatoon);
   const setStudentTieuDoi = useAppStore(state => state.setStudentTieuDoi);
   const setStudentDaiDoi = useAppStore(state => state.setStudentDaiDoi);
+  const setStudentMissing = useAppStore(state => state.setStudentMissing);
   const setGroupMode = useAppStore(state => state.setStudentGroupMode);
   const setTab = useAppStore(state => state.setStudentTab);
   const toggleSelected = useAppStore(state => state.toggleStudentSelected);
@@ -162,6 +175,7 @@ export function StudentsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bulkPosition, setBulkPosition] = useState('Học viên');
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const students = useMemo(() => selectFilteredStudents({
     record,
@@ -170,8 +184,9 @@ export function StudentsPage() {
     studentRoom,
     studentPlatoon,
     studentTieuDoi,
-    studentDaiDoi
-  }), [record, studentSearch, studentBuilding, studentRoom, studentPlatoon, studentTieuDoi, studentDaiDoi]);
+    studentDaiDoi,
+    studentMissing
+  }), [record, studentSearch, studentBuilding, studentRoom, studentPlatoon, studentTieuDoi, studentDaiDoi, studentMissing]);
   const facets = useMemo(() => selectStudentFacets(record), [record]);
   const stats = useMemo(() => selectStudentStats(record), [record]);
   const leaderStudents = useMemo(() => students.filter(student => isLeaderPosition(student.position)), [students]);
@@ -184,13 +199,18 @@ export function StudentsPage() {
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const groups: Array<StudentRoomGroup | StudentPlatoonGroup> = groupMode === 'room' ? roomGroups : platoonGroups;
+  const detailStudent = useMemo(
+    () => detailId ? record.students.find(student => student.id === detailId) || null : null,
+    [detailId, record.students]
+  );
   const allVisibleSelected = students.length > 0 && students.every(student => selectedSet.has(student.id));
   const hasFilters = Boolean(studentSearch)
     || studentBuilding !== 'ALL'
     || studentRoom !== 'ALL'
     || studentPlatoon !== 'ALL'
     || studentTieuDoi !== 'ALL'
-    || studentDaiDoi !== 'ALL';
+    || studentDaiDoi !== 'ALL'
+    || studentMissing !== 'ALL';
 
   const askDelete = async (student: Student) => {
     const ok = await confirmAction({
@@ -227,6 +247,7 @@ export function StudentsPage() {
       student={student}
       selected={selectedSet.has(student.id)}
       onToggle={() => toggleSelected(student.id)}
+      onView={() => setDetailId(student.id)}
       onEdit={() => openEditor(student.id)}
       onDelete={() => askDelete(student)}
       onClearPosition={leaderMode ? () => setStudentPosition(student.id, 'Học viên') : undefined}
@@ -272,6 +293,14 @@ export function StudentsPage() {
           <span className="student-stat-icon blue"><UsersRound size={18} /></span>
           <span><strong>{stats.noPlatoon}</strong><small>Chưa xếp b</small></span>
         </button>
+        <button type="button" className="student-stat" onClick={() => { resetFilters(); setTab('students'); setStudentMissing('cccd'); }}>
+          <span className="student-stat-icon gold"><IdCard size={18} /></span>
+          <span><strong>{stats.missingCccd}</strong><small>Thiếu CCCD</small></span>
+        </button>
+        <button type="button" className="student-stat" onClick={() => { resetFilters(); setTab('students'); setStudentMissing('hometown'); }}>
+          <span className="student-stat-icon red"><MapPin size={18} /></span>
+          <span><strong>{stats.missingHometown}</strong><small>Thiếu quê quán</small></span>
+        </button>
       </section>
 
       <section className="filter-panel student-filter-panel">
@@ -281,7 +310,7 @@ export function StudentsPage() {
             type="search"
             value={studentSearch}
             onChange={event => setStudentSearch(event.target.value)}
-            placeholder="Tìm tên, mã SV, phòng, lớp, số điện thoại..."
+            placeholder="Tìm tên, mã SV, CCCD, quê quán, lớp, phòng, SĐT..."
             aria-label="Tìm sinh viên"
           />
           {studentSearch ? (
@@ -341,6 +370,15 @@ export function StudentsPage() {
               <option value="ALL">Tất cả a</option>
               <option value="__none__">Chưa xếp a</option>
               {facets.tieuDois.map(value => <option key={value} value={value}>{unitCode('tieuDoi', value)}</option>)}
+            </select>
+          </label>
+          <label className="compact-field">
+            <span>Thiếu thông tin</span>
+            <select value={studentMissing} onChange={event => setStudentMissing(event.target.value as StudentMissingFilter)}>
+              <option value="ALL">Không lọc</option>
+              {STUDENT_INFO_FIELDS.map(field => (
+                <option key={field.key} value={field.key}>Thiếu {field.label.toLowerCase()}</option>
+              ))}
             </select>
           </label>
         </section>
@@ -466,6 +504,17 @@ export function StudentsPage() {
           </div>
         </div>
       ) : null}
+
+      <StudentDetail
+        student={detailStudent}
+        onClose={() => setDetailId(null)}
+        onEdit={() => {
+          if (!detailStudent) return;
+          const id = detailStudent.id;
+          setDetailId(null);
+          openEditor(id);
+        }}
+      />
 
       <input
         ref={fileRef}

@@ -778,6 +778,10 @@
     font-size: 9.2px;
   }
 
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .bulk-bar {
     align-items: stretch;
     flex-direction: column;

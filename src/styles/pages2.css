@@ -23,7 +23,7 @@
 
 .student-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
   gap: 10px;
 }
 
@@ -97,7 +97,7 @@
 
 .student-filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 9px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -340,6 +340,101 @@
   font-size: 10px;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.student-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.student-detail-avatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--primary-soft), var(--surface-3));
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.student-detail-hero > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.student-detail-hero strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  font-weight: 820;
+}
+
+.student-detail-hero > div span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.student-detail-hero + .form-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+}
+
+.detail-item {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.detail-item dt {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.detail-item dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.student-detail-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.student-detail-updated {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
 }
 
 .student-actions {
