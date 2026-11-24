@@ -67,6 +67,16 @@ function StudentCard({
   onDelete: () => void;
   onClearPosition?: () => void;
 }) {
+  const extraInfo = [
+    { label: 'Lớp', value: student.className },
+    { label: 'Trường', value: student.school },
+    { label: 'Ngày sinh', value: student.birthDate },
+    { label: 'Quê quán', value: student.hometown },
+    { label: 'Giới tính', value: student.gender },
+    { label: 'Dân tộc', value: student.ethnicity },
+    { label: 'CCCD', value: student.cccd }
+  ].filter(item => Boolean(item.value));
+
   return (
     <article className={`student-card ${selected ? 'selected' : ''}`}>
       <label className="student-check">
@@ -88,6 +98,16 @@ function StudentCard({
           {student.tieuDoi ? <span title={unitFull('tieuDoi', student.tieuDoi)}><GraduationCap size={13} /> {unitCode('tieuDoi', student.tieuDoi)}</span> : null}
           {student.phone ? <span><Phone size={13} /> {student.phone}</span> : null}
         </div>
+        {extraInfo.length ? (
+          <div className="student-extra">
+            {extraInfo.map(item => (
+              <span key={item.label}>
+                <span className="student-extra-label">{item.label}</span>
+                {item.value}
+              </span>
+            ))}
+          </div>
+        ) : null}
         {student.note ? <p className="student-note">{student.note}</p> : null}
       </div>
       <div className="student-actions">

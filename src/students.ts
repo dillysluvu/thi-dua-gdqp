@@ -708,6 +708,35 @@ export function parseStudentRows(rows: string[][], items: any[] = []): StudentIm
   };
 }
 
+const MERGE_PRESERVE_FIELDS: Array<keyof Student> = [
+  'code',
+  'building',
+  'room',
+  'tieuDoi',
+  'trungDoi',
+  'daiDoi',
+  'position',
+  'phone',
+  'note',
+  'className',
+  'school',
+  'birthDate',
+  'hometown',
+  'gender',
+  'ethnicity',
+  'cccd'
+];
+
+function mergeStudentRecord(existing: Student, incoming: Student): Student {
+  const merged: Student = { ...incoming, id: existing.id };
+  const target = merged as unknown as Record<string, string>;
+  const source = existing as unknown as Record<string, string>;
+  MERGE_PRESERVE_FIELDS.forEach(field => {
+    if (!String(target[field] || '').trim()) target[field] = String(source[field] || '');
+  });
+  return merged;
+}
+
 export function mergeStudentLists(current: Student[], incoming: Student[]): Student[] {
   const result = (current || []).slice();
   const byCode = new Map<string, number>();
@@ -726,8 +755,7 @@ export function mergeStudentLists(current: Student[], incoming: Student[]): Stud
       : (byNameRoom.has(nameKey) ? byNameRoom.get(nameKey)! : -1);
 
     if (index >= 0) {
-      const id = result[index].id;
-      result[index] = { ...student, id };
+      result[index] = mergeStudentRecord(result[index], student);
       if (student.code) byCode.set(codeKey, index);
       byNameRoom.set(nameKey, index);
     } else {

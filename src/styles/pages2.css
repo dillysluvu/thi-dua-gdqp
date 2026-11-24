@@ -312,6 +312,27 @@
   gap: 3px;
 }
 
+.student-extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 3px;
+  color: var(--text-soft);
+  font-size: 9.8px;
+}
+
+.student-extra > span {
+  display: inline-flex;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.student-extra-label {
+  color: var(--muted);
+  font-weight: 650;
+}
+
 .student-note {
   overflow: hidden;
   margin-top: 3px;

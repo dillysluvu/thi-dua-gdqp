@@ -40,6 +40,7 @@ Có thể dùng trên điện thoại, máy tính bảng hoặc máy tính. Tran
 - Có thể chọn **nhiều file .xls/.xlsx cùng lúc** để nhập gộp (ví dụ file ĐHKT và file HVMM).
 - Nếu đã nhập danh sách bằng bản 3.2 trở về trước, hãy nhập lại file biên chế ở chế độ **Cập nhật** một lần để thay số tiểu đội cũ (1–3 trong từng trung đội) bằng số tiểu đội gốc.
 - Xem danh sách nhóm theo từng phòng hoặc theo trung đội; lọc nhanh cán sự, sinh viên chưa xếp phòng/trung đội; lọc theo tòa, phòng, đại đội (c), trung đội (b), tiểu đội (a) và tìm kiếm không dấu.
+- Thẻ sinh viên hiển thị đầy đủ thông tin đã nhập từ file: lớp, trường, ngày sinh, quê quán/nơi sinh, giới tính, dân tộc, CCCD, số điện thoại và ghi chú.
 - Thêm, sửa, xóa sinh viên trực tiếp trên giao diện; kiểm tra trùng mã SV; **Lưu & Thêm tiếp** để nhập nhanh nhiều sinh viên; xóa có xác nhận và **Hoàn tác**.
 - Chọn nhiều sinh viên bằng checkbox để **xóa hàng loạt** hoặc **gán chức vụ hàng loạt**; mở rộng phần thông tin bổ sung để sửa lớp, ngày sinh, CCCD...
 - Gán chức vụ **Tiểu đội trưởng**, **Trung đội trưởng**, **Phó đại đội trưởng**; tab **Ban cán sự** có nút **Gán cán sự** để tìm sinh viên theo tên/mã và gán chức vụ, tránh tạo trùng sinh viên.
@@ -104,7 +105,7 @@ Vào menubar **Sinh viên → Nhập Excel/CSV**.
 - Cột bắt buộc: **Họ tên**. Các cột còn lại là tùy chọn.
 - Tên cột được nhận diện tự động: `Họ tên`, `Mã SV`, `Tòa`, `Phòng`, `Tiểu đội (a)`, `Trung đội (b)`, `Đại đội (c)`, `Chức vụ`, `SĐT`, `Ghi chú`, `Lớp`, `Trường`, `Ngày sinh`, `Nơi sinh`, `Giới tính`, `Dân tộc`, `CCCD`.
 - Nếu file không có dòng tiêu đề, ứng dụng đọc theo thứ tự cột mặc định ở trên.
-- Chế độ **Cập nhật** giữ sinh viên hiện có và cập nhật theo mã SV; sinh viên chưa có mã mới đối chiếu theo họ tên + phòng. Chế độ **Thay thế** xóa danh sách cũ rồi nhập mới. Khi cập nhật, chức vụ cán sự, SĐT và ghi chú đã nhập tay được giữ lại nếu file mới để trống.
+- Chế độ **Cập nhật** giữ sinh viên hiện có và cập nhật theo mã SV; sinh viên chưa có mã mới đối chiếu theo họ tên + phòng. Chế độ **Thay thế** xóa danh sách cũ rồi nhập mới. Khi cập nhật, mọi thông tin đã có (chức vụ cán sự, lớp, trường, ngày sinh, quê quán, giới tính, dân tộc, CCCD, SĐT, ghi chú...) được giữ lại nếu file mới để trống cột tương ứng.
 - Có thể chọn nhiều file cùng lúc. Với file có cả sheet `Bienche` và `Nha o`, nên nhập sheet `Bienche` ở mục **Nhập danh sách sinh viên** và nhập sheet `Nha o` ở mục **Nhập Excel / Google Sheets** để cập nhật danh sách trung đội.
 - Với mẫu biên chế, ứng dụng tự nhận:
   - dòng `Danh sách biên chế tiểu đội` và `Trung đội`;

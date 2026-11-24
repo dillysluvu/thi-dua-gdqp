@@ -62,6 +62,43 @@ describe('students', () => {
     expect(merged.find(s => s.code === 'SV01')?.name).toBe('A mới');
   });
 
+  it('giữ thông tin phụ khi file cập nhật để trống cột', () => {
+    const current = normalizeStudents([{
+      id: '1',
+      name: 'A',
+      code: 'SV01',
+      room: '503',
+      className: 'AT23A',
+      school: 'HVMM',
+      birthDate: '01/01/2008',
+      hometown: 'Hà Nội',
+      gender: 'Nam',
+      ethnicity: 'Kinh',
+      cccd: '001208000001',
+      phone: '0901'
+    }]);
+    const incoming = normalizeStudents([{
+      id: '2',
+      name: 'A',
+      code: 'SV01',
+      room: '503',
+      className: '',
+      school: '',
+      birthDate: '',
+      hometown: '',
+      gender: '',
+      ethnicity: '',
+      cccd: '',
+      phone: ''
+    }]);
+    const merged = mergeStudentLists(current, incoming);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].cccd).toBe('001208000001');
+    expect(merged[0].hometown).toBe('Hà Nội');
+    expect(merged[0].className).toBe('AT23A');
+    expect(merged[0].phone).toBe('0901');
+  });
+
   it('đọc file biên chế nhiều tiểu đội, ghép họ tên và giữ thông tin phụ', () => {
     const result = parseStudentRows([
       ['', '', '', '', ' Danh sách biên chế tiểu đội :', '46', '', '', '', 'Trung đội :', '16', '', '', '', ''],
